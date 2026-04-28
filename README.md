@@ -17,7 +17,7 @@ import (
     "fmt"
     "os"
 
-    gofonts "github.com/venusliang/go-font"
+    gofont "github.com/venusliang/go-font"
 )
 
 func main() {
@@ -25,7 +25,7 @@ func main() {
     data, _ := os.ReadFile("myfont.ttf")
 
     // 解析
-    ttf, err := gofonts.Parse(data)
+    ttf, err := gofont.Parse(data)
     if err != nil {
         panic(err)
     }
@@ -119,7 +119,7 @@ func main() {
 将 Unicode 码点 0x91 的字形映射改为 0xFB：
 
 ```go
-ttf, _ := gofonts.Parse(data)
+ttf, _ := gofont.Parse(data)
 
 gid := ttf.RuneToGlyphID(0x91)   // 取出字形ID
 ttf.RemoveRuneMapping(0x91)       // 删除旧映射
@@ -131,7 +131,7 @@ out, _ := ttf.Serialize()
 ### 查询字形信息
 
 ```go
-ttf, _ := gofonts.Parse(data)
+ttf, _ := gofont.Parse(data)
 
 // 通过Unicode码点查字形
 g := ttf.GlyphForRune('A')
@@ -152,7 +152,7 @@ for _, m := range ttf.RuneMappings() {
 删除不需要的字形，缩小字体文件体积：
 
 ```go
-ttf, _ := gofonts.Parse(data)
+ttf, _ := gofont.Parse(data)
 
 // 删除索引为 3, 7, 10 的字形
 remap, err := ttf.RemoveGlyphs([]int{3, 7, 10})
@@ -184,13 +184,13 @@ out, _ := ttf.Serialize()
 ### 替换字形数据
 
 ```go
-ttf, _ := gofonts.Parse(data)
+ttf, _ := gofont.Parse(data)
 
 // 用索引0的字形替换索引1的字形
 src := ttf.GlyphAt(0)
 if src != nil {
     // 复制一份避免共享底层数据
-    newGlyph := &gofonts.Glyph{
+    newGlyph := &gofont.Glyph{
         header: src.header,
     }
     if src.simpleGlyph != nil {
@@ -207,7 +207,7 @@ out, _ := ttf.Serialize()
 ### 添加新的 Unicode 映射
 
 ```go
-ttf, _ := gofonts.Parse(data)
+ttf, _ := gofont.Parse(data)
 
 // 将字符 'A' (U+0041) 映射到已有的字形1
 err := ttf.SetRuneMapping('A', 1)
@@ -227,7 +227,7 @@ out, _ := ttf.Serialize()
 ### 读取字体基本信息
 
 ```go
-ttf, _ := gofonts.Parse(data)
+ttf, _ := gofont.Parse(data)
 
 fmt.Printf("字体名: %s\n", ttf.FontFamily())
 fmt.Printf("全名: %s\n", ttf.FontFullName())
@@ -250,7 +250,7 @@ fmt.Printf("U+E001 advance width: %d\n", aw)
 ### 字体子集化
 
 ```go
-ttf, _ := gofonts.Parse(data)
+ttf, _ := gofont.Parse(data)
 
 // 只保留需要的字符，自动删除多余字形
 err := ttf.Subset([]rune{'A', 'B', 'C', 'D', 'E'})
@@ -266,7 +266,7 @@ out, _ := ttf.Serialize()
 ### 修改字体度量
 
 ```go
-ttf, _ := gofonts.Parse(data)
+ttf, _ := gofont.Parse(data)
 
 // 修改字形1的前进宽度
 ttf.SetAdvanceWidth(1, 600)
@@ -282,7 +282,7 @@ out, _ := ttf.Serialize()
 ### 字形几何变换
 
 ```go
-ttf, _ := gofonts.Parse(data)
+ttf, _ := gofont.Parse(data)
 
 // 平移字形 (向右100单位，向下50单位)
 ttf.TranslateGlyph(1, 100, -50)
@@ -296,15 +296,15 @@ out, _ := ttf.Serialize()
 ### 追加新字形
 
 ```go
-ttf, _ := gofonts.Parse(data)
+ttf, _ := gofont.Parse(data)
 
 // 创建一个空字形
-newGlyph := &gofonts.Glyph{
-    header: gofonts.GlyphHeader{
+newGlyph := &gofont.Glyph{
+    header: gofont.GlyphHeader{
         numberOfContours: 1,
         xMin: 0, yMin: 0, xMax: 500, yMax: 700,
     },
-    simpleGlyph: &gofonts.SimpleGlyph{
+    simpleGlyph: &gofont.SimpleGlyph{
         endPtsOfContours: []uint16{3},
         xCoordinates:     []int16{0, 500, 500, 0},
         yCoordinates:     []int16{0, 0, 700, 700},

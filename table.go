@@ -1,4 +1,4 @@
-package gofonts
+package gofont
 
 type TableDirectory struct {
 	tag      uint32 // table tag name

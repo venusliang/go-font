@@ -1,4 +1,4 @@
-package gofonts
+package gofont
 
 type Binary interface {
 	U8() uint8

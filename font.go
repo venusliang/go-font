@@ -1,4 +1,4 @@
-package gofonts
+package gofont
 
 // Font is an interface for font types that can parse binary data.
 type Font interface {

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Go library (`github.com/venusliang/go-font`, package `gofonts`) for parsing, editing, and writing TrueType font (.ttf) files. It reads binary font data, deserializes all standard TrueType table structures, and can serialize modified fonts back to valid .ttf files.
+A Go library (`github.com/venusliang/go-font`, package `gofont`) for parsing, editing, and writing TrueType font (.ttf) files. It reads binary font data, deserializes all standard TrueType table structures, and can serialize modified fonts back to valid .ttf files.
 
 ## Commands
 

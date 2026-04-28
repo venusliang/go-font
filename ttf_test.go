@@ -1,4 +1,4 @@
-package gofonts
+package gofont
 
 import (
 	"encoding/binary"
