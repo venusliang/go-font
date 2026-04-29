@@ -158,6 +158,18 @@ func (ttf *TrueTypeFont) RemoveGlyphs(indices []int) (remap map[int]int, err err
 		ttf.hhea.numberOfHMetrics = uint16(len(newHmtx.hMetrics))
 	}
 
+	// Update post table
+	if ttf.post != nil && ttf.post.version == 0x00020000 {
+		newGNI := make([]uint16, len(newGlyphs))
+		for oldIdx, newIdx := range remap {
+			if oldIdx < len(ttf.post.glyphNameIndex) {
+				newGNI[newIdx] = ttf.post.glyphNameIndex[oldIdx]
+			}
+		}
+		ttf.post.glyphNameIndex = newGNI
+		ttf.post.numGlyphs = uint16(len(newGlyphs))
+	}
+
 	// Update runeToGlyphID map
 	ttf.ensureRuneMap()
 	for r, oldGID := range ttf.runeToGlyphID {
@@ -168,8 +180,79 @@ func (ttf *TrueTypeFont) RemoveGlyphs(indices []int) (remap map[int]int, err err
 		}
 	}
 
+	// Recalculate global bounding box in head
+	ttf.recalcHeadBBox()
+
+	// Update OS/2 character range
+	ttf.updateOS2CharRange()
+
 	ttf.recalcMaxp()
 	return
+}
+
+// recalcHeadBBox recalculates the global font bounding box in the head table
+// from the current glyph data.
+func (ttf *TrueTypeFont) recalcHeadBBox() {
+	if ttf.head == nil || len(ttf.glyf) == 0 {
+		return
+	}
+	first := true
+	for _, g := range ttf.glyf {
+		if g == nil {
+			continue
+		}
+		// Skip empty glyphs (numberOfContours == 0 with no data)
+		if g.header.numberOfContours == 0 && g.simpleGlyph == nil && g.compositeGlyph == nil {
+			continue
+		}
+		if first {
+			ttf.head.xMin = g.header.xMin
+			ttf.head.yMin = g.header.yMin
+			ttf.head.xMax = g.header.xMax
+			ttf.head.yMax = g.header.yMax
+			first = false
+		} else {
+			if g.header.xMin < ttf.head.xMin {
+				ttf.head.xMin = g.header.xMin
+			}
+			if g.header.yMin < ttf.head.yMin {
+				ttf.head.yMin = g.header.yMin
+			}
+			if g.header.xMax > ttf.head.xMax {
+				ttf.head.xMax = g.header.xMax
+			}
+			if g.header.yMax > ttf.head.yMax {
+				ttf.head.yMax = g.header.yMax
+			}
+		}
+	}
+}
+
+// updateOS2CharRange updates the usFirstCharIndex and usLastCharIndex fields
+// in the OS/2 table based on the current rune mappings.
+func (ttf *TrueTypeFont) updateOS2CharRange() {
+	if ttf.os2 == nil || len(ttf.runeToGlyphID) == 0 {
+		return
+	}
+	first := true
+	for r := range ttf.runeToGlyphID {
+		u := uint16(r)
+		if u == 0 {
+			continue
+		}
+		if first {
+			ttf.os2.usFirstCharIndex = u
+			ttf.os2.usLastCharIndex = u
+			first = false
+		} else {
+			if u < ttf.os2.usFirstCharIndex {
+				ttf.os2.usFirstCharIndex = u
+			}
+			if u > ttf.os2.usLastCharIndex {
+				ttf.os2.usLastCharIndex = u
+			}
+		}
+	}
 }
 
 // recalcMaxp recalculates maxp statistics from current glyph data.

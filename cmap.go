@@ -307,8 +307,8 @@ func parseCmapFormat12(binary Binary) (*CMapFormat12, error) {
 }
 
 func writeCmap(cmap *CMap) []byte {
-	// Serialize each unique subtable
-	subtableData := make(map[int][]byte) // index -> serialized bytes
+	// Serialize each subtable
+	subtableData := make([][]byte, len(cmap.subtables))
 	for i, sub := range cmap.subtables {
 		switch s := sub.(type) {
 		case *CMapFormat0:
@@ -323,29 +323,41 @@ func writeCmap(cmap *CMap) []byte {
 	}
 
 	// Build offset map: encoding record index -> subtable data offset
-	// Encoding records reference subtables by subtableOffset.
-	// We assign one subtable per encoding record by matching order.
+	// Each encoding record maps to subtableData[i] by index.
+	// Multiple encoding records can share the same subtable data (written once).
 	headerSize := 4 + len(cmap.encodingRecords)*8
 
+	// Assign offsets: one per encoding record, dedup by data content
 	offsets := make([]uint32, len(cmap.encodingRecords))
 	curOffset := uint32(headerSize)
-	subIdx := 0
+	dataIndex := 0 // index into unique data blobs written so far
+
+	type dataRef struct {
+		bytes  []byte
+		offset uint32
+	}
+	var uniqueData []dataRef
+
 	for i := 0; i < len(cmap.encodingRecords); i++ {
-		// Check if this encoding record points to the same offset as a previous one
-		duplicate := false
-		for j := 0; j < i; j++ {
-			if cmap.encodingRecords[j].subtableOffset == cmap.encodingRecords[i].subtableOffset {
-				offsets[i] = offsets[j]
-				duplicate = true
+		if i >= len(subtableData) || subtableData[i] == nil {
+			// No subtable for this record — point to offset 0 (invalid, shouldn't happen)
+			offsets[i] = 0
+			continue
+		}
+		// Check if this subtable data is identical to a previously written one
+		found := false
+		for _, ref := range uniqueData {
+			if bytesEqual(ref.bytes, subtableData[i]) {
+				offsets[i] = ref.offset
+				found = true
 				break
 			}
 		}
-		if !duplicate {
+		if !found {
 			offsets[i] = curOffset
-			if subIdx < len(subtableData) {
-				curOffset += uint32(len(subtableData[subIdx]))
-			}
-			subIdx++
+			uniqueData = append(uniqueData, dataRef{subtableData[i], curOffset})
+			curOffset += uint32(len(subtableData[i]))
+			dataIndex++
 		}
 	}
 
@@ -359,24 +371,32 @@ func writeCmap(cmap *CMap) []byte {
 	for i, rec := range cmap.encodingRecords {
 		binary.PutU16(rec.platformID)
 		binary.PutU16(rec.encodingID)
-		binary.PutU32(offsets[i])
+		if i < len(offsets) {
+			binary.PutU32(offsets[i])
+		} else {
+			binary.PutU32(0)
+		}
 	}
 
-	// Write subtables (unique ones only)
-	written := make(map[uint32]bool)
-	subIdx = 0
-	for i := range cmap.encodingRecords {
-		if written[offsets[i]] {
-			continue
-		}
-		written[offsets[i]] = true
-		if subIdx < len(subtableData) {
-			copy(data[offsets[i]:], subtableData[subIdx])
-			subIdx++
-		}
+	// Write unique subtables
+	for _, ref := range uniqueData {
+		copy(data[ref.offset:], ref.bytes)
 	}
 
 	return data
+}
+
+// bytesEqual compares two byte slices for equality.
+func bytesEqual(a, b []byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func writeCmapFormat0(f *CMapFormat0) []byte {
@@ -505,29 +525,82 @@ func rebuildCmap(runeToGlyphID map[rune]uint16, orig *CMap) *CMap {
 	// Determine which format to use: if any codepoint > 0xFFFF, need format 12
 	needFormat12 := pairs[len(pairs)-1].codePoint > 0xFFFF
 
-	newCmap := &CMap{
-		version:         orig.version,
-		numTables:       orig.numTables,
-		encodingRecords: orig.encodingRecords,
-	}
-
+	// Build format 4 subtable (BMP)
+	bmpPairs := pairs
 	if needFormat12 {
-		f12 := buildCmapFormat12(pairs)
-		// Also build format 4 for BMP subset
-		bmpPairs := make([]runeGlyphPair, 0)
+		bmpPairs = make([]runeGlyphPair, 0)
 		for _, p := range pairs {
 			if p.codePoint <= 0xFFFF {
 				bmpPairs = append(bmpPairs, p)
 			}
 		}
-		f4 := buildCmapFormat4(bmpPairs)
-		newCmap.subtables = []CMapSubtable{f4, f12}
-	} else {
-		f4 := buildCmapFormat4(pairs)
-		newCmap.subtables = []CMapSubtable{f4}
+	}
+	f4 := buildCmapFormat4(bmpPairs)
+
+	// Build the new cmap with proper encoding records and subtables.
+	// We generate one subtable per encoding record, matching the original records.
+	// Platform 3 (Windows) + encoding 1 → format 4
+	// Platform 0 (Unicode) + encoding 3/4 → format 4 or 12
+	// Other records → format 4 (or skip if incompatible)
+	var newRecords []encodingRecord
+	var newSubtables []CMapSubtable
+	headerSize := 4 // version + numTables
+
+	for _, rec := range orig.encodingRecords {
+		switch {
+		case rec.platformID == 3 && rec.encodingID == 1:
+			// Windows Unicode BMP → format 4
+			newRecords = append(newRecords, encodingRecord{
+				platformID:     rec.platformID,
+				encodingID:     rec.encodingID,
+				subtableOffset: 0, // will be filled by writeCmap
+			})
+			newSubtables = append(newSubtables, f4)
+		case rec.platformID == 0 && (rec.encodingID == 3 || rec.encodingID == 4):
+			// Unicode → format 4 (or format 12 if needed)
+			if needFormat12 {
+				f12 := buildCmapFormat12(pairs)
+				newRecords = append(newRecords, encodingRecord{
+					platformID:     rec.platformID,
+					encodingID:     rec.encodingID,
+					subtableOffset: 0,
+				})
+				newSubtables = append(newSubtables, f12)
+			} else {
+				newRecords = append(newRecords, encodingRecord{
+					platformID:     rec.platformID,
+					encodingID:     rec.encodingID,
+					subtableOffset: 0,
+				})
+				newSubtables = append(newSubtables, f4)
+			}
+		default:
+			// Keep other records but point them at format 4
+			newRecords = append(newRecords, encodingRecord{
+				platformID:     rec.platformID,
+				encodingID:     rec.encodingID,
+				subtableOffset: 0,
+			})
+			newSubtables = append(newSubtables, f4)
+		}
 	}
 
-	return newCmap
+	// If no records were generated (shouldn't happen), add a safe default
+	if len(newRecords) == 0 {
+		newRecords = []encodingRecord{
+			{platformID: 3, encodingID: 1, subtableOffset: 0},
+		}
+		newSubtables = []CMapSubtable{f4}
+	}
+
+	headerSize += len(newRecords) * 8
+
+	return &CMap{
+		version:         orig.version,
+		numTables:       uint16(len(newRecords)),
+		encodingRecords: newRecords,
+		subtables:       newSubtables,
+	}
 }
 
 // buildCmapFormat4 builds a Format 4 subtable from sorted rune-glyph pairs.

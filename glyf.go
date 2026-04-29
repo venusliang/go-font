@@ -313,7 +313,7 @@ func writeSimpleGlyph(binary Binary, sg *SimpleGlyph) {
 
 		if dx == 0 {
 			f |= glyphFlagXSame
-		} else if dx > 0 && dx <= 127 || dx < 0 && dx >= -127 {
+		} else if dx > 0 && dx <= 255 || dx < 0 && dx >= -255 {
 			f |= glyphFlagXShort
 			if dx > 0 {
 				f |= glyphFlagXSame // positive short
@@ -323,7 +323,7 @@ func writeSimpleGlyph(binary Binary, sg *SimpleGlyph) {
 
 		if dy == 0 {
 			f |= glyphFlagYSame
-		} else if dy > 0 && dy <= 127 || dy < 0 && dy >= -127 {
+		} else if dy > 0 && dy <= 255 || dy < 0 && dy >= -255 {
 			f |= glyphFlagYShort
 			if dy > 0 {
 				f |= glyphFlagYSame // positive short

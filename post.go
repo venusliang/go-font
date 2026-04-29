@@ -58,7 +58,7 @@ func parsePost(data []byte) (*Post, error) {
 		// Standard Macintosh glyph names go up to index 257
 		// Custom names start at index 258
 		if maxIdx >= 258 {
-			remaining := binary.Bytes(binary.Offset())
+			remaining := data[binary.Offset():]
 			post.stringData = make([]byte, len(remaining))
 			copy(post.stringData, remaining)
 		}
