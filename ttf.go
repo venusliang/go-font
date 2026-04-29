@@ -20,6 +20,9 @@ type TrueTypeFont struct {
 	loca          *Loca
 	glyf          []*Glyph
 	post          *Post
+	kern          *Kern
+	gpos          *GPOS
+	gsub          *GSUB
 	runeToGlyphID map[rune]uint16
 }
 
@@ -90,6 +93,12 @@ func Parse(data []byte) (ttf TrueTypeFont, err error) {
 			ttf.hhea, err = parseHhea(table)
 		case "post":
 			ttf.post, err = parsePost(table)
+		case "kern":
+			ttf.kern, err = parseKern(table)
+		case "GPOS":
+			ttf.gpos, err = parseGpos(table)
+		case "GSUB":
+			ttf.gsub, err = parseGsub(table)
 		}
 		if err != nil {
 			return

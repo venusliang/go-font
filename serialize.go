@@ -62,6 +62,15 @@ func (ttf *TrueTypeFont) Serialize() ([]byte, error) {
 	if ttf.post != nil {
 		tables = append(tables, tableEntry{"post", writePost(ttf.post)})
 	}
+	if ttf.kern != nil {
+		tables = append(tables, tableEntry{"kern", writeKern(ttf.kern)})
+	}
+	if ttf.gpos != nil {
+		tables = append(tables, tableEntry{"GPOS", writeGpos(ttf.gpos)})
+	}
+	if ttf.gsub != nil {
+		tables = append(tables, tableEntry{"GSUB", writeGsub(ttf.gsub)})
+	}
 
 	numTables := len(tables)
 
