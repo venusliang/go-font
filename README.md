@@ -1,6 +1,6 @@
 # go-font
 
-Go 语言 TrueType 字体（.ttf）解析、编辑与序列化库。
+Go 语言 TrueType 字体（.ttf）解析、编辑与序列化库，支持 WOFF / WOFF2 / EOT 格式。
 
 ## 安装
 
@@ -46,7 +46,13 @@ func main() {
 | 方法 | 说明 |
 |------|------|
 | `Parse(data []byte) (TrueTypeFont, error)` | 解析 TTF 二进制数据，返回字体对象 |
+| `ParseWOFF(data []byte) (TrueTypeFont, error)` | 解析 WOFF 二进制数据，返回字体对象 |
+| `ParseWOFF2(data []byte) (TrueTypeFont, error)` | 解析 WOFF2 二进制数据，返回字体对象 |
+| `ParseEOT(data []byte) (TrueTypeFont, error)` | 解析 EOT 二进制数据，返回字体对象 |
 | `ttf.Serialize() ([]byte, error)` | 将字体对象序列化为完整的 TTF 二进制数据 |
+| `ttf.SerializeWOFF() ([]byte, error)` | 将字体对象序列化为 WOFF 格式 |
+| `ttf.SerializeWOFF2() ([]byte, error)` | 将字体对象序列化为 WOFF2 格式 |
+| `ttf.SerializeEOT() ([]byte, error)` | 将字体对象序列化为 EOT 格式 |
 
 ### Unicode 映射
 
@@ -105,6 +111,88 @@ func main() {
 | `FontFullName() string` | 获取字体全名 |
 | `SetFontFamily(name)` | 设置字体族名 |
 | `SetFontFullName(name)` | 设置字体全名 |
+
+### 多格式支持
+
+库支持 TTF、WOFF、WOFF2、EOT 四种格式的解析与序列化，所有格式解析后均返回统一的 `TrueTypeFont` 对象，可自由编辑后再序列化为任意格式。
+
+#### WOFF（Web Open Font Format）
+
+```go
+data, _ := os.ReadFile("myfont.woff")
+ttf, _ := gofont.ParseWOFF(data)
+
+// 编辑...
+ttf.SetFontFamily("NewName")
+
+// 序列化为 WOFF
+woffOut, _ := ttf.SerializeWOFF()
+os.WriteFile("output.woff", woffOut, 0644)
+
+// 也可序列化为 TTF 或 WOFF2
+ttfOut, _ := ttf.Serialize()
+woff2Out, _ := ttf.SerializeWOFF2()
+```
+
+- 基于 zlib 逐表压缩
+- 解析后等同于标准 TTF，所有编辑 API 均可用
+- 序列化时自动压缩每个表
+
+#### WOFF2（Web Open Font Format 2）
+
+```go
+data, _ := os.ReadFile("myfont.woff2")
+ttf, _ := gofont.ParseWOFF2(data)
+
+// 序列化为 WOFF2
+woff2Out, _ := ttf.SerializeWOFF2()
+```
+
+- 基于 Brotli 压缩（所有表合并为单个压缩流）
+- 自动处理 glyf/loca 和 hmtx 表的逆变换
+- 序列化时不做表变换（transform version 3），兼容性好
+- 依赖 `github.com/andybalholm/brotli`（纯 Go，无 CGO）
+
+#### EOT（Embedded OpenType）
+
+```go
+data, _ := os.ReadFile("myfont.eot")
+ttf, _ := gofont.ParseEOT(data)
+
+// 序列化为 EOT
+eotOut, _ := ttf.SerializeEOT()
+```
+
+- 微软字体嵌入格式，主要用于旧版 IE
+- 支持 version 0x00010000 / 0x00020001 / 0x00020002
+- 支持自动 XOR 0x50 解密
+- 序列化时从 OS/2、head、name 表自动填充 EOT 元数据（PANOSE、Weight、UnicodeRange 等）
+- 名称字段使用 UTF-16LE 编码
+
+#### 格式限制
+
+| 格式 | 限制 |
+|------|------|
+| WOFF | 无 |
+| WOFF2 | 序列化时不做 glyf/loca/hmtx 表变换，压缩率略低于官方工具 |
+| EOT | 不支持 MTX（MicroType Express）压缩，遇到时返回错误；不支持 CFF（OpenType with CFF）字体 |
+| EOT | 仅支持 TrueType 轮廓（glyf 表），不支持 CFF 轮廓 |
+
+#### 格式互转
+
+```go
+// 读取 WOFF2，输出为 TTF
+ttf, _ := gofont.ParseWOFF2(woff2Data)
+ttfOut, _ := ttf.Serialize()
+
+// 读取 TTF，输出为 EOT
+ttf, _ := gofont.Parse(ttfData)
+eotOut, _ := ttf.SerializeEOT()
+
+// 读取 EOT，输出为 WOFF
+ttf, _ := gofont.ParseEOT(eotData)
+woffOut, _ := ttf.SerializeWOFF()
+```
 
 ### 高级操作
 
@@ -380,6 +468,18 @@ type GlyphComponent struct {
 | `loca` | `loca.go` | 字形索引到偏移映射 |
 | `glyf` | `glyf.go` | 字形轮廓数据 |
 | `post` | `post.go` | PostScript 名称映射 |
+| `kern` | `kern.go` | 字距调整表 |
+| `GPOS` | `gpos.go` | 字形定位表 |
+| `GSUB` | `gsub.go` | 字形替换表 |
+
+## 支持的字体格式
+
+| 格式 | 文件 | 解析 | 序列化 | 说明 |
+|------|------|------|--------|------|
+| TTF | `ttf.go` / `serialize.go` | `Parse()` | `Serialize()` | TrueType 字体 |
+| WOFF | `woff.go` | `ParseWOFF()` | `SerializeWOFF()` | zlib 逐表压缩 |
+| WOFF2 | `woff2.go` | `ParseWOFF2()` | `SerializeWOFF2()` | Brotli 整体压缩 |
+| EOT | `eot.go` | `ParseEOT()` | `SerializeEOT()` | 微软嵌入式字体 |
 
 ## 运行测试
 

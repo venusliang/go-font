@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Go library (`github.com/venusliang/go-font`, package `gofont`) for parsing, editing, and writing TrueType font (.ttf) files. It reads binary font data, deserializes all standard TrueType table structures, and can serialize modified fonts back to valid .ttf files.
+A Go library (`github.com/venusliang/go-font`, package `gofont`) for parsing, editing, and writing TrueType font (.ttf) files. Supports WOFF, WOFF2, and EOT format parsing and serialization. It reads binary font data, deserializes all standard TrueType table structures, and can serialize modified fonts back to valid .ttf, .woff, .woff2, or .eot files.
 
 ## Commands
 
@@ -47,6 +47,9 @@ Each TrueType table has its own file with a `parseXxx(data []byte)` function and
 | `loca.go` | `loca` | Glyph index to offset mapping (short/long format) |
 | `glyf.go` | `glyf` | Glyph outlines (simple + composite), flag RLE encoding |
 | `post.go` | `post` | PostScript name mapping, format 2.0 |
+| `kern.go` | `kern` | Kerning table, format 0 |
+| `gpos.go` | `GPOS` | Glyph positioning, single substitution / pair positioning |
+| `gsub.go` | `GSUB` | Glyph substitution, single substitution |
 
 ### Parse Order
 
@@ -72,6 +75,18 @@ Each table has a `_test.go` file with `TestParseXxx` (value assertions) and `Tes
 - **Subset**: `Subset(keepRunes)` keeps only glyphs needed for specified characters
 
 The abstract cmap layer uses `map[rune]uint16` (lazily initialized from parsed cmap via `Enumerate`). When `Serialize()` is called and the map is non-nil, `rebuildCmap()` regenerates the binary cmap from the abstract map.
+
+### Font Format Support
+
+Each font format has its own file with `ParseXxx()` and `SerializeXxx()` methods:
+
+| File | Format | Parse | Serialize | Notes |
+|------|--------|-------|-----------|-------|
+| `woff.go` | WOFF | `ParseWOFF()` | `SerializeWOFF()` | zlib per-table compression, uses shared `rebuildTTF()` |
+| `woff2.go` | WOFF2 | `ParseWOFF2()` | `SerializeWOFF2()` | Brotli single-stream compression, glyf/loca & hmtx transform support, uses shared `rebuildTTF()` |
+| `eot.go` | EOT | `ParseEOT()` | `SerializeEOT()` | Little-endian header, XOR 0x50 decryption, no compression (MTX not supported) |
+
+All formats parse to the same `TrueTypeFont` struct and all editing APIs work regardless of source format. `rebuildTTF()` in `woff2.go` is shared by WOFF and WOFF2 for reconstructing a TTF byte stream from decompressed table entries.
 
 ### Key Implementation Details
 
