@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Go library (`github.com/venusliang/go-font`, package `gofont`) for parsing, editing, and writing TrueType font (.ttf) files. Supports WOFF, WOFF2, and EOT format parsing and serialization. It reads binary font data, deserializes all standard TrueType table structures, and can serialize modified fonts back to valid .ttf, .woff, .woff2, or .eot files.
+A Go library (`github.com/venusliang/go-font`, package `gofont`) for parsing, editing, and writing TrueType font (.ttf) files. Supports WOFF, WOFF2, EOT, and TTC format parsing and serialization. It reads binary font data, deserializes all standard TrueType table structures, and can serialize modified fonts back to valid .ttf, .woff, .woff2, .eot, or .ttc files.
 
 ## Commands
 
@@ -23,7 +23,7 @@ There is no linting, CI configuration, or Makefile in this project.
 
 ## Architecture
 
-The entry point is `Parse(data []byte)` in `ttf.go`, which returns a `TrueTypeFont` struct containing all parsed font tables. `Serialize() ([]byte, error)` in `serialize.go` writes a complete .ttf file from the struct.
+The entry point is `Parse(data []byte)` in `ttf.go`, which returns a `TrueTypeFont` struct containing all parsed font tables. `Parse()` delegates to `parseFromOffset(data, offset)` which supports parsing a TTF at an arbitrary offset within a larger file (used by TTC). `Serialize() ([]byte, error)` in `serialize.go` writes a complete .ttf file from the struct.
 
 ### Binary I/O Layer
 
@@ -85,8 +85,11 @@ Each font format has its own file with `ParseXxx()` and `SerializeXxx()` methods
 | `woff.go` | WOFF | `ParseWOFF()` | `SerializeWOFF()` | zlib per-table compression, uses shared `rebuildTTF()` |
 | `woff2.go` | WOFF2 | `ParseWOFF2()` | `SerializeWOFF2()` | Brotli single-stream compression, glyf/loca & hmtx transform support, uses shared `rebuildTTF()` |
 | `eot.go` | EOT | `ParseEOT()` | `SerializeEOT()` | Little-endian header, XOR 0x50 decryption, no compression (MTX not supported) |
+| `ttc.go` | TTC | `ParseTTC()` | `SerializeTTC()` | TrueType Collection, multiple fonts in one file, uses `parseFromOffset()` |
 
 All formats parse to the same `TrueTypeFont` struct and all editing APIs work regardless of source format. `rebuildTTF()` in `woff2.go` is shared by WOFF and WOFF2 for reconstructing a TTF byte stream from decompressed table entries.
+
+TTC (TrueType Collection) is a container format that bundles multiple fonts in one file. `ParseTTC()` returns `[]TrueTypeFont`. Each font's table offsets are relative to the TTC file start. `SerializeTTC(fonts)` serializes each font independently then adjusts table directory offsets to be TTC-relative. `TestFormatCrossRoundTrip` in `ttc_test.go` verifies the full chain: TTC → TTF → WOFF → WOFF2 → EOT → TTF.
 
 ### Key Implementation Details
 

@@ -26,9 +26,16 @@ type TrueTypeFont struct {
 	runeToGlyphID map[rune]uint16
 }
 
-func Parse(data []byte) (ttf TrueTypeFont, err error) {
+// Parse parses TTF binary data and returns a TrueTypeFont.
+func Parse(data []byte) (TrueTypeFont, error) {
+	return parseFromOffset(data, 0)
+}
+
+// parseFromOffset parses a TTF starting at the given byte offset within data.
+// Used by both Parse() (offset=0) and ParseTTC() (offset from TTC header).
+func parseFromOffset(data []byte, offset uint32) (ttf TrueTypeFont, err error) {
 	ttf.data = data
-	binary := BinaryFrom(data, false)
+	binary := BinaryFrom(data[offset:], false)
 
 	ttf.version = binary.U32()
 	if ttf.version != 0x00010000 && ttf.version != 0x74727565 {

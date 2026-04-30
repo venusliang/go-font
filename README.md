@@ -49,10 +49,12 @@ func main() {
 | `ParseWOFF(data []byte) (TrueTypeFont, error)` | 解析 WOFF 二进制数据，返回字体对象 |
 | `ParseWOFF2(data []byte) (TrueTypeFont, error)` | 解析 WOFF2 二进制数据，返回字体对象 |
 | `ParseEOT(data []byte) (TrueTypeFont, error)` | 解析 EOT 二进制数据，返回字体对象 |
+| `ParseTTC(data []byte) ([]TrueTypeFont, error)` | 解析 TTC 二进制数据，返回字体对象列表 |
 | `ttf.Serialize() ([]byte, error)` | 将字体对象序列化为完整的 TTF 二进制数据 |
 | `ttf.SerializeWOFF() ([]byte, error)` | 将字体对象序列化为 WOFF 格式 |
 | `ttf.SerializeWOFF2() ([]byte, error)` | 将字体对象序列化为 WOFF2 格式 |
 | `ttf.SerializeEOT() ([]byte, error)` | 将字体对象序列化为 EOT 格式 |
+| `SerializeTTC(fonts []TrueTypeFont) ([]byte, error)` | 将多个字体对象序列化为 TTC 格式 |
 
 ### Unicode 映射
 
@@ -114,7 +116,7 @@ func main() {
 
 ### 多格式支持
 
-库支持 TTF、WOFF、WOFF2、EOT 四种格式的解析与序列化，所有格式解析后均返回统一的 `TrueTypeFont` 对象，可自由编辑后再序列化为任意格式。
+库支持 TTF、WOFF、WOFF2、EOT、TTC 五种格式的解析与序列化，所有格式解析后均返回统一的 `TrueTypeFont` 对象，可自由编辑后再序列化为任意格式。
 
 #### WOFF（Web Open Font Format）
 
@@ -169,6 +171,27 @@ eotOut, _ := ttf.SerializeEOT()
 - 序列化时从 OS/2、head、name 表自动填充 EOT 元数据（PANOSE、Weight、UnicodeRange 等）
 - 名称字段使用 UTF-16LE 编码
 
+#### TTC（TrueType Collection）
+
+```go
+data, _ := os.ReadFile("myfont.ttc")
+fonts, _ := gofont.ParseTTC(data)
+
+// 取出第一个字体进行编辑
+fonts[0].SetFontFamily("NewName")
+
+// 单独序列化为 TTF
+ttfOut, _ := fonts[0].Serialize()
+
+// 或重新打包为 TTC
+ttcOut, _ := gofont.SerializeTTC(fonts)
+```
+
+- 多字体打包格式（如系统 CJK 字体 NotoSansCJK.ttc）
+- 解析返回 `[]TrueTypeFont`，每个字体可独立编辑和序列化
+- 支持 version 1.0 和 2.0
+- 序列化时每个字体独立打包，表偏移自动调整为 TTC 相对偏移
+
 #### 格式限制
 
 | 格式 | 限制 |
@@ -177,6 +200,7 @@ eotOut, _ := ttf.SerializeEOT()
 | WOFF2 | 序列化时不做 glyf/loca/hmtx 表变换，压缩率略低于官方工具 |
 | EOT | 不支持 MTX（MicroType Express）压缩，遇到时返回错误；不支持 CFF（OpenType with CFF）字体 |
 | EOT | 仅支持 TrueType 轮廓（glyf 表），不支持 CFF 轮廓 |
+| TTC | 不支持表共享（序列化时每个字体独立打包，不合并共享表） |
 
 #### 格式互转
 
@@ -192,6 +216,13 @@ eotOut, _ := ttf.SerializeEOT()
 // 读取 EOT，输出为 WOFF
 ttf, _ := gofont.ParseEOT(eotData)
 woffOut, _ := ttf.SerializeWOFF()
+
+// 从 TTC 中提取第一个字体，输出为 WOFF2
+fonts, _ := gofont.ParseTTC(ttcData)
+woff2Out, _ := fonts[0].SerializeWOFF2()
+
+// 将多个字体打包为 TTC
+ttcOut, _ := gofont.SerializeTTC(fonts)
 ```
 
 ### 高级操作
@@ -480,6 +511,7 @@ type GlyphComponent struct {
 | WOFF | `woff.go` | `ParseWOFF()` | `SerializeWOFF()` | zlib 逐表压缩 |
 | WOFF2 | `woff2.go` | `ParseWOFF2()` | `SerializeWOFF2()` | Brotli 整体压缩 |
 | EOT | `eot.go` | `ParseEOT()` | `SerializeEOT()` | 微软嵌入式字体 |
+| TTC | `ttc.go` | `ParseTTC()` | `SerializeTTC()` | TrueType 字体集 |
 
 ## 运行测试
 
