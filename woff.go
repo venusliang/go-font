@@ -27,7 +27,7 @@ func ParseWOFF(data []byte) (TrueTypeFont, error) {
 	_ = binary.U32()             // total WOFF length
 	numTables := binary.U16()
 	_ = binary.U16()             // reserved
-	totalSfntSize := binary.U32() // total uncompressed size
+	_ = binary.U32()             // totalSfntSize
 	_ = binary.U16()             // majorVersion
 	_ = binary.U16()             // minorVersion
 	_ = binary.U32()             // metaOffset
@@ -36,20 +36,14 @@ func ParseWOFF(data []byte) (TrueTypeFont, error) {
 	_ = binary.U32()             // privOffset
 	_ = binary.U32()             // privLength
 
-	// Read WOFF table directory
-	type woffEntry struct {
-		tag         string
-		checksum    uint32
-		compData    []byte
-		origLength  uint32
-	}
-	entries := make([]woffEntry, numTables)
+	// Read and decompress WOFF tables
+	entries := make([]rebuildTableEntry, numTables)
 	for i := range entries {
 		tag := string(binary.Read(4))
 		offset := binary.U32()
 		compLength := binary.U32()
 		origLength := binary.U32()
-		origChecksum := binary.U32()
+		_ = binary.U32() // origChecksum
 
 		if int(offset+compLength) > len(data) {
 			return TrueTypeFont{}, errors.New("WOFF table data out of bounds")
@@ -57,10 +51,8 @@ func ParseWOFF(data []byte) (TrueTypeFont, error) {
 
 		compData := data[offset : offset+compLength]
 
-		// Decompress using zlib
 		var decompData []byte
 		if compLength == origLength {
-			// Not compressed (compressed size == original size)
 			decompData = make([]byte, len(compData))
 			copy(decompData, compData)
 		} else {
@@ -79,62 +71,10 @@ func ParseWOFF(data []byte) (TrueTypeFont, error) {
 			return TrueTypeFont{}, errors.New("WOFF decompressed size mismatch")
 		}
 
-		entries[i] = woffEntry{
-			tag:      tag,
-			checksum: origChecksum,
-			compData: decompData,
-			origLength: origLength,
-		}
+		entries[i] = rebuildTableEntry{tag: tag, data: decompData}
 	}
 
-	// Rebuild TTF byte stream
-	searchRange, entrySelector, rangeShift := calcSearchParams(int(numTables))
-	headerSize := 12 + int(numTables)*16
-
-	ttfData := make([]byte, totalSfntSize)
-	ttfBin := BinaryFrom(ttfData, false)
-
-	// Write TTF header
-	ttfBin.PutU32(flavor)
-	ttfBin.PutU16(numTables)
-	ttfBin.PutU16(searchRange)
-	ttfBin.PutU16(uint16(entrySelector))
-	ttfBin.PutU16(rangeShift)
-
-	// Calculate table offsets (4-byte aligned)
-	offsets := make([]uint32, numTables)
-	off := uint32(headerSize)
-	for i, e := range entries {
-		offsets[i] = off
-		paddedLen := e.origLength
-		if paddedLen%4 != 0 {
-			paddedLen += 4 - paddedLen%4
-		}
-		off += paddedLen
-	}
-
-	// Write TTF table directory
-	for i, e := range entries {
-		ttfBin.Append([]byte(e.tag))
-		ttfBin.PutU32(e.checksum)
-		ttfBin.PutU32(offsets[i])
-		ttfBin.PutU32(e.origLength)
-	}
-
-	// Write TTF table data
-	for i, e := range entries {
-		copy(ttfData[offsets[i]:], e.compData)
-		paddedLen := e.origLength
-		if paddedLen%4 != 0 {
-			paddedLen += 4 - paddedLen%4
-		}
-		// Zero-fill padding
-		for j := e.origLength; j < paddedLen; j++ {
-			ttfData[offsets[i]+j] = 0
-		}
-	}
-
-	return Parse(ttfData)
+	return rebuildTTF(flavor, entries)
 }
 
 // SerializeWOFF serializes the font as a WOFF (Web Open Font Format) file.
@@ -189,7 +129,6 @@ func (ttf *TrueTypeFont) SerializeWOFF() ([]byte, error) {
 		compData := buf.Bytes()
 
 		// If compression doesn't help, store uncompressed
-		// WOFF spec allows storing uncompressed if compressed >= original
 		if len(compData) >= len(tableData) {
 			compData = make([]byte, len(tableData))
 			copy(compData, tableData)
@@ -209,7 +148,6 @@ func (ttf *TrueTypeFont) SerializeWOFF() ([]byte, error) {
 	dirSize := int(numTables) * dirEntrySize
 	dataStart := headerSize + dirSize
 
-	// Calculate offsets for compressed data
 	woffOffsets := make([]uint32, numTables)
 	off := uint32(dataStart)
 	for i, ct := range compTables {
@@ -219,11 +157,9 @@ func (ttf *TrueTypeFont) SerializeWOFF() ([]byte, error) {
 
 	totalLength := off
 
-	// Allocate WOFF buffer
 	woffData := make([]byte, totalLength)
 	woffBin := BinaryFrom(woffData, false)
 
-	// Write WOFF header
 	woffBin.PutU32(woffSignature)
 	woffBin.PutU32(flavor)
 	woffBin.PutU32(totalLength)
@@ -238,7 +174,6 @@ func (ttf *TrueTypeFont) SerializeWOFF() ([]byte, error) {
 	woffBin.PutU32(0) // privOffset
 	woffBin.PutU32(0) // privLength
 
-	// Write table directory
 	for i, ct := range compTables {
 		woffBin.Append([]byte(ct.tag))
 		woffBin.PutU32(woffOffsets[i])
@@ -247,7 +182,6 @@ func (ttf *TrueTypeFont) SerializeWOFF() ([]byte, error) {
 		woffBin.PutU32(ct.checksum)
 	}
 
-	// Write compressed table data
 	for _, ct := range compTables {
 		woffBin.Append(ct.compData)
 	}
