@@ -24,6 +24,7 @@ type TrueTypeFont struct {
 	gpos          *GPOS
 	gsub          *GSUB
 	runeToGlyphID map[rune]uint16
+	cff          *CFF
 	// rawTables holds raw bytes for tables not natively parsed (e.g. "CFF ").
 	// These are preserved for round-trip serialization.
 	rawTables map[string][]byte
@@ -138,6 +139,16 @@ func parseFromOffset(data []byte, offset uint32) (ttf TrueTypeFont, err error) {
 		ttf.hmtx, err = parseHmtx(table, int(ttf.hhea.numberOfHMetrics), int(ttf.maxp.numGlyphs))
 		if err != nil {
 			return
+		}
+	}
+
+	// Parse CFF table for OpenType/CFF fonts
+	if ttf.IsCFF() {
+		if raw, ok := ttf.rawTables["CFF "]; ok {
+			ttf.cff, err = parseCFF(raw)
+			if err != nil {
+				return
+			}
 		}
 	}
 

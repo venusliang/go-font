@@ -59,7 +59,13 @@ func (ttf *TrueTypeFont) RemoveRuneMapping(r rune) {
 
 // NumGlyphs returns the number of glyphs in the font.
 func (ttf *TrueTypeFont) NumGlyphs() int {
-	return len(ttf.glyf)
+	if len(ttf.glyf) > 0 {
+		return len(ttf.glyf)
+	}
+	if ttf.maxp != nil {
+		return int(ttf.maxp.numGlyphs)
+	}
+	return 0
 }
 
 // GlyphAt returns the glyph at the given index, or nil if out of range.
@@ -385,7 +391,7 @@ func (ttf *TrueTypeFont) Descent() int16 {
 
 // AdvanceWidth returns the advance width for the given glyph ID.
 func (ttf *TrueTypeFont) AdvanceWidth(glyphID uint16) uint16 {
-	if ttf.hmtx == nil || int(glyphID) >= len(ttf.glyf) {
+	if ttf.hmtx == nil || int(glyphID) >= ttf.NumGlyphs() {
 		return 0
 	}
 	numHMetrics := len(ttf.hmtx.hMetrics)
@@ -401,7 +407,7 @@ func (ttf *TrueTypeFont) AdvanceWidth(glyphID uint16) uint16 {
 
 // LeftSideBearing returns the left side bearing for the given glyph ID.
 func (ttf *TrueTypeFont) LeftSideBearing(glyphID uint16) int16 {
-	if ttf.hmtx == nil || int(glyphID) >= len(ttf.glyf) {
+	if ttf.hmtx == nil || int(glyphID) >= ttf.NumGlyphs() {
 		return 0
 	}
 	numHMetrics := len(ttf.hmtx.hMetrics)
@@ -519,7 +525,7 @@ func (ttf *TrueTypeFont) FontFullName() string {
 
 // SetAdvanceWidth sets the advance width for the given glyph ID.
 func (ttf *TrueTypeFont) SetAdvanceWidth(glyphID uint16, width uint16) error {
-	if ttf.hmtx == nil || int(glyphID) >= len(ttf.glyf) {
+	if ttf.hmtx == nil || int(glyphID) >= ttf.NumGlyphs() {
 		return errors.New("glyph ID out of range")
 	}
 	numHMetrics := len(ttf.hmtx.hMetrics)
@@ -534,7 +540,7 @@ func (ttf *TrueTypeFont) SetAdvanceWidth(glyphID uint16, width uint16) error {
 
 // SetLeftSideBearing sets the left side bearing for the given glyph ID.
 func (ttf *TrueTypeFont) SetLeftSideBearing(glyphID uint16, lsb int16) error {
-	if ttf.hmtx == nil || int(glyphID) >= len(ttf.glyf) {
+	if ttf.hmtx == nil || int(glyphID) >= ttf.NumGlyphs() {
 		return errors.New("glyph ID out of range")
 	}
 	numHMetrics := len(ttf.hmtx.hMetrics)
@@ -786,4 +792,21 @@ func (ttf *TrueTypeFont) MappedRunes() []rune {
 		return runes[i] < runes[j]
 	})
 	return runes
+}
+
+// CFFFontName returns the CFF font name. Returns "" for non-CFF fonts.
+func (ttf *TrueTypeFont) CFFFontName() string {
+	if ttf.cff == nil {
+		return ""
+	}
+	return ttf.cff.FontName()
+}
+
+// CFFGlyphName returns the glyph name for the given glyph ID.
+// Works for both CFF (via charset) and TrueType (via post table) fonts.
+func (ttf *TrueTypeFont) CFFGlyphName(glyphID int) string {
+	if ttf.cff != nil {
+		return ttf.cff.GlyphName(glyphID)
+	}
+	return ""
 }

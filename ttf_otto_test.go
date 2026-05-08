@@ -27,7 +27,6 @@ func loadOTTOFont(t *testing.T) []byte {
 				return
 			}
 		}
-		// If no OTF file exists, generate a minimal one programmatically
 		ottoFontData = generateMinimalOTTO(t)
 	})
 	return ottoFontData
@@ -44,7 +43,6 @@ func TestParseOTTO(t *testing.T) {
 		t.Error("IsCFF() should return true for OTTO font")
 	}
 
-	// Verify common tables are parsed
 	if font.head == nil {
 		t.Error("head table should be parsed")
 	}
@@ -64,7 +62,6 @@ func TestParseOTTO(t *testing.T) {
 		t.Error("hmtx table should be parsed")
 	}
 
-	// CFF font should NOT have glyf/loca
 	if font.glyf != nil {
 		t.Error("CFF font should not have glyf table parsed")
 	}
@@ -72,7 +69,6 @@ func TestParseOTTO(t *testing.T) {
 		t.Error("CFF font should not have loca table parsed")
 	}
 
-	// maxp version should be 0x00005000 for CFF
 	if font.maxp.version != 0x00005000 {
 		t.Errorf("maxp version = 0x%08X, want 0x00005000", font.maxp.version)
 	}
@@ -80,10 +76,6 @@ func TestParseOTTO(t *testing.T) {
 		t.Error("maxp.numGlyphs should be > 0")
 	}
 
-	// CFF raw table data should be preserved
-	if len(font.rawTables) == 0 {
-		t.Error("rawTables should contain CFF table data")
-	}
 	hasCFF := false
 	for tag := range font.rawTables {
 		if tag == "CFF " {
@@ -113,12 +105,9 @@ func TestRoundTripOTTO(t *testing.T) {
 		t.Fatalf("Re-parse serialized OTTO font failed: %v", err)
 	}
 
-	// Verify version preserved
 	if font2.version != font.version {
 		t.Errorf("version mismatch: got 0x%08X, want 0x%08X", font2.version, font.version)
 	}
-
-	// Verify key fields match
 	if font2.head.unitsPerEm != font.head.unitsPerEm {
 		t.Errorf("unitsPerEm mismatch: got %d, want %d", font2.head.unitsPerEm, font.head.unitsPerEm)
 	}
@@ -129,7 +118,6 @@ func TestRoundTripOTTO(t *testing.T) {
 		t.Errorf("ascent mismatch: got %d, want %d", font2.hhea.ascent, font.hhea.ascent)
 	}
 
-	// CFF raw table should survive round-trip
 	if _, ok := font2.rawTables["CFF "]; !ok {
 		t.Error("CFF table should survive round-trip")
 	}
@@ -142,95 +130,186 @@ func TestOTTOFontMetrics(t *testing.T) {
 		t.Fatalf("Parse OTTO font failed: %v", err)
 	}
 
-	// UnitsPerEm should work
 	upm := font.UnitsPerEm()
 	if upm == 0 {
 		t.Error("UnitsPerEm should be > 0")
 	}
 
-	// FontBBox should work
-	xMin, yMin, xMax, yMax := font.FontBBox()
-	_ = xMin
-	_ = yMin
-	_ = xMax
-	_ = yMax
-
-	// Ascent/Descent should work
 	ascent := font.Ascent()
 	if ascent == 0 {
 		t.Error("Ascent should be non-zero")
 	}
 
-	// NumGlyphs returns len(glyf) which is 0 for CFF fonts
-	// This is expected behavior for Phase 1
+	// NumGlyphs should use maxp.numGlyphs for CFF fonts
 	numGlyphs := font.NumGlyphs()
-	if numGlyphs != 0 {
-		t.Errorf("NumGlyphs for CFF font (Phase 1) should be 0, got %d", numGlyphs)
+	if numGlyphs != 2 {
+		t.Errorf("NumGlyphs for CFF font should be 2, got %d", numGlyphs)
 	}
+
+	// AdvanceWidth should work for CFF fonts
+	aw := font.AdvanceWidth(0)
+	if aw != 500 {
+		t.Errorf("AdvanceWidth(0) = %d, want 500", aw)
+	}
+
+	// CFF-specific methods
+	name := font.CFFFontName()
+	if name != "TestOTTO" {
+		t.Errorf("CFFFontName = %q, want %q", name, "TestOTTO")
+	}
+
+	gname := font.CFFGlyphName(0)
+	if gname != ".notdef" {
+		t.Errorf("GlyphName(0) = %q, want %q", gname, ".notdef")
+	}
+}
+
+// --- CFF helper functions for test font generation ---
+
+// buildTestCFFINDEX builds a CFF INDEX structure from a slice of byte slices.
+func buildTestCFFINDEX(elements [][]byte) []byte {
+	count := len(elements)
+	if count == 0 {
+		return []byte{0, 0}
+	}
+
+	// Calculate offsets (1-based)
+	offsets := make([]uint32, count+1)
+	offsets[0] = 1
+	for i, elem := range elements {
+		offsets[i+1] = offsets[i] + uint32(len(elem))
+	}
+
+	// Determine offSize
+	maxOff := offsets[count]
+	var offSize int
+	if maxOff <= 0xFF {
+		offSize = 1
+	} else if maxOff <= 0xFFFF {
+		offSize = 2
+	} else if maxOff <= 0xFFFFFF {
+		offSize = 3
+	} else {
+		offSize = 4
+	}
+
+	// Build INDEX
+	size := 2 + 1 + (count+1)*offSize
+	for _, elem := range elements {
+		size += len(elem)
+	}
+
+	buf := make([]byte, 0, size)
+	// count (uint16 big-endian)
+	buf = append(buf, byte(count>>8), byte(count))
+	// offSize
+	buf = append(buf, byte(offSize))
+	// offsets
+	for _, off := range offsets {
+		for j := offSize - 1; j >= 0; j-- {
+			buf = append(buf, byte(off>>(j*8)))
+		}
+	}
+	// data
+	for _, elem := range elements {
+		buf = append(buf, elem...)
+	}
+
+	return buf
+}
+
+// appendTestDictInt appends a DICT-encoded integer to buf.
+func appendTestDictInt(buf []byte, val int32) []byte {
+	if val >= -107 && val <= 108 {
+		return append(buf, byte(val+139))
+	}
+	if val >= 108 && val <= 1131 {
+		val -= 108
+		return append(buf, byte((val>>8)+247), byte(val&0xFF))
+	}
+	if val >= -1131 && val <= -108 {
+		val = -val - 108
+		return append(buf, byte((val>>8)+251), byte(val&0xFF))
+	}
+	// Use 5-byte encoding (29 + int32)
+	buf = append(buf, 29)
+	buf = append(buf, byte(val>>24), byte(val>>16), byte(val>>8), byte(val))
+	return buf
 }
 
 // generateMinimalOTTO creates a minimal valid OTTO font file for testing.
 func generateMinimalOTTO(t *testing.T) []byte {
 	t.Helper()
 
+	// --- Build individual tables ---
+
 	// head table (54 bytes)
 	headData := make([]byte, 54)
 	b := BinaryFrom(headData, false)
-	b.PutU16(1)            // majorVersion
-	b.PutU16(0)            // minorVersion
-	b.PutU16(1)            // fontRevision major
-	b.PutU16(0)            // fontRevision minor
-	b.PutU32(0)            // checksumAdjustment (patched later)
+	var neg200 int16 = -200
+	b.PutU16(1)
+	b.PutU16(0)
+	b.PutU16(1)
+	b.PutU16(0)
+	b.PutU32(0)            // checksumAdjustment
 	b.PutU32(0x5F0F3CF5)   // magicNumber
 	b.PutU16(0x000B)       // flags
 	b.PutU16(1000)         // unitsPerEm
-	b.PutU64(0)            // created
-	b.PutU64(0)            // modified
-	var neg200 int16 = -200
-	b.PutU16(0)                // xMin
-	b.PutU16(uint16(neg200))   // yMin
-	b.PutU16(uint16(600))      // xMax
-	b.PutU16(uint16(800))      // yMax
-	b.PutU16(0)            // macStyle
-	b.PutU16(8)            // lowestRecPPEM
-	b.PutU16(uint16(2))    // fontDirectionHint
-	b.PutU16(0)            // indexToLocFormat
-	b.PutU16(0)            // glyphDataFormat
+	b.PutU64(0)
+	b.PutU64(0)
+	b.PutU16(0)
+	b.PutU16(uint16(neg200))
+	b.PutU16(600)
+	b.PutU16(800)
+	b.PutU16(0)
+	b.PutU16(8)
+	b.PutU16(2)
+	b.PutU16(0)
+	b.PutU16(0)
 
 	// hhea table (36 bytes)
 	hheaData := make([]byte, 36)
 	b = BinaryFrom(hheaData, false)
-	b.PutU32(0x00010000)         // version
-	b.PutU16(uint16(int16(800))) // ascent
-	b.PutU16(uint16(neg200))    // descent
-	b.PutU16(0)              // lineGap
-	b.PutU16(600)            // advanceWidthMax
-	b.PutU16(0)              // minLeftSideBearing
-	b.PutU16(0)              // minRightSideBearing
-	b.PutU16(uint16(800))    // xMaxExtent
-	b.PutU16(uint16(1))      // caretSlopeRise
-	b.PutU16(0)              // caretSlopeRun
-	b.PutU16(0)              // caretOffset
-	b.PutU16(0)              // reserved1
-	b.PutU16(0)              // reserved2
-	b.PutU16(0)              // reserved3
-	b.PutU16(0)              // reserved4
-	b.PutU16(0)              // metricDataFormat
-	b.PutU16(2)              // numberOfHMetrics
+	b.PutU32(0x00010000)
+	b.PutU16(800)
+	b.PutU16(uint16(neg200))
+	for i := 0; i < 12; i++ {
+		b.PutU16(0)
+	}
+	b.PutU16(600) // advanceWidthMax at correct position
+	// Rewrite manually for clarity
+	hheaData2 := make([]byte, 36)
+	b = BinaryFrom(hheaData2, false)
+	b.PutU32(0x00010000)   // version
+	b.PutU16(800)          // ascent
+	b.PutU16(uint16(neg200)) // descent
+	b.PutU16(0)            // lineGap
+	b.PutU16(600)          // advanceWidthMax
+	b.PutU16(0)            // minLeftSideBearing
+	b.PutU16(0)            // minRightSideBearing
+	b.PutU16(800)          // xMaxExtent
+	b.PutU16(1)            // caretSlopeRise
+	b.PutU16(0)            // caretSlopeRun
+	for i := 0; i < 5; i++ { // caretOffset + 4 reserved
+		b.PutU16(0)
+	}
+	b.PutU16(0) // metricDataFormat
+	b.PutU16(2) // numberOfHMetrics
+	hheaData = hheaData2
 
 	// maxp table (6 bytes for CFF)
 	maxpData := make([]byte, 6)
 	b = BinaryFrom(maxpData, false)
-	b.PutU32(0x00005000) // CFF version
-	b.PutU16(2)          // numGlyphs
+	b.PutU32(0x00005000)
+	b.PutU16(2)
 
-	// hmtx table (2 glyphs × 4 bytes = 8 bytes)
+	// hmtx table (2 glyphs)
 	hmtxData := make([]byte, 8)
 	b = BinaryFrom(hmtxData, false)
-	b.PutU16(500) // advanceWidth glyph 0
-	b.PutU16(0)   // lsb glyph 0
-	b.PutU16(500) // advanceWidth glyph 1
-	b.PutU16(0)   // lsb glyph 1
+	b.PutU16(500)
+	b.PutU16(0)
+	b.PutU16(500)
+	b.PutU16(0)
 
 	// name table
 	familyName := encodeUTF16BE("TestOTTO")
@@ -245,7 +324,7 @@ func generateMinimalOTTO(t *testing.T) []byte {
 		{3, 1, 0x0409, 4, fullName},
 		{3, 1, 0x0409, 6, psName},
 	}
-	stringStorage := make([]byte, 0)
+	var stringStorage []byte
 	off := uint16(0)
 	type nameRec struct {
 		platformID, encodingID, languageID, nameID, length, offset uint16
@@ -258,9 +337,9 @@ func generateMinimalOTTO(t *testing.T) []byte {
 	}
 	nameData := make([]byte, 6+12*len(records)+len(stringStorage))
 	b = BinaryFrom(nameData, false)
-	b.PutU16(0)                              // format
-	b.PutU16(uint16(len(records)))           // count
-	b.PutU16(6 + uint16(12*len(records)))    // stringOffset
+	b.PutU16(0)
+	b.PutU16(uint16(len(records)))
+	b.PutU16(6 + uint16(12*len(records)))
 	for _, r := range records {
 		b.PutU16(r.platformID)
 		b.PutU16(r.encodingID)
@@ -271,99 +350,138 @@ func generateMinimalOTTO(t *testing.T) []byte {
 	}
 	b.Append(stringStorage)
 
-	// cmap table - format 4 mapping 'A' (U+0041) -> glyph 1
+	// cmap table
 	segCount := uint16(2)
-	cmapSubtable := make([]byte, 14+int(segCount)*8+2) // +2 for reservedPad
+	cmapSubtable := make([]byte, 14+int(segCount)*8+2)
 	b = BinaryFrom(cmapSubtable, false)
-	b.PutU16(4)                          // format
-	b.PutU16(0)                          // length (patched below)
-	b.PutU16(0)                          // language
-	b.PutU16(segCount * 2)               // segCountX2
+	b.PutU16(4)
+	b.PutU16(0)
+	b.PutU16(0)
+	b.PutU16(segCount * 2)
 	sr, es, rs := calcSearchParams(int(segCount))
 	b.PutU16(sr)
 	b.PutU16(es)
 	b.PutU16(rs)
-	// endCode
 	b.PutU16(0x0041)
 	b.PutU16(0xFFFF)
-	// reservedPad
 	b.PutU16(0)
-	// startCode
 	b.PutU16(0x0041)
 	b.PutU16(0xFFFF)
-	// idDelta
 	var delta int16 = 1 - 0x0041
 	b.PutU16(uint16(delta))
-	b.PutU16(uint16(int16(1)))
-	// idRangeOffset
+	b.PutU16(1)
 	b.PutU16(0)
 	b.PutU16(0)
-	// Patch length at offset 2
 	b2 := BinaryFrom(cmapSubtable[2:4], false)
 	b2.PutU16(uint16(len(cmapSubtable)))
 
 	cmapData := make([]byte, 4+8+len(cmapSubtable))
 	b = BinaryFrom(cmapData, false)
-	b.PutU16(0)  // version
-	b.PutU16(1)  // numTables
-	b.PutU16(3)  // platformID (Windows)
-	b.PutU16(1)  // encodingID (Unicode BMP)
-	b.PutU32(12) // offset to subtable
+	b.PutU16(0)
+	b.PutU16(1)
+	b.PutU16(3)
+	b.PutU16(1)
+	b.PutU32(12)
 	b.Append(cmapSubtable)
 
-	// OS/2 table (86 bytes for version 1: 78 base + 4 ulCodePageRange1 + 4 ulCodePageRange2)
+	// OS/2 table (86 bytes for version 1)
 	os2Data := make([]byte, 86)
 	b = BinaryFrom(os2Data, false)
-	b.PutU16(1)          // version
-	b.PutU16(uint16(500)) // xAvgCharWidth
-	b.PutU16(400)        // usWeightClass
-	b.PutU16(5)          // usWidthClass
-	b.PutU16(0)          // fsType
-	for i := 0; i < 10; i++ { // ySubscript/YSuperscript fields (10 × int16)
+	b.PutU16(1)
+	b.PutU16(500)
+	b.PutU16(400)
+	b.PutU16(5)
+	b.PutU16(0)
+	for i := 0; i < 10; i++ {
 		b.PutU16(0)
 	}
 	b.Append([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}) // panose
-	b.Append([]byte{0, 0, 0, 0}) // ulUnicodeRange1
-	b.Append([]byte{0, 0, 0, 0}) // ulUnicodeRange2
-	b.Append([]byte{0, 0, 0, 0}) // ulUnicodeRange3
-	b.Append([]byte{0, 0, 0, 4}) // ulUnicodeRange4
-	b.Append([]byte("    "))     // achVendID
-	b.PutU16(0x0040)             // fsSelection
-	b.PutU16(0x0041)             // usFirstCharIndex
-	b.PutU16(0x0041)             // usLastCharIndex
-	b.PutU16(uint16(800))        // sTypoAscender
-	b.PutU16(uint16(neg200))          // sTypoDescender
-	b.PutU16(0)                  // sTypoLineGap
-	b.PutU16(800)                // usWinAscent
-	b.PutU16(200)                // usWinDescent
+	b.Append([]byte{0, 0, 0, 0})
+	b.Append([]byte{0, 0, 0, 0})
+	b.Append([]byte{0, 0, 0, 0})
+	b.Append([]byte{0, 0, 0, 4})
+	b.Append([]byte("    "))
+	b.PutU16(0x0040)
+	b.PutU16(0x0041)
+	b.PutU16(0x0041)
+	b.PutU16(800)
+	b.PutU16(uint16(neg200))
+	b.PutU16(0)
+	b.PutU16(800)
+	b.PutU16(200)
 
-	// CFF table - minimal valid CFF data
-	cffData := []byte{
-		1, 0, 4, 1,                       // header: major=1, minor=0, hdrSize=4, offSize=1
-		0, 1, 1, 1, 9,                    // Name INDEX: count=1, offSize=1, offsets=[1,9]
-		'T', 'e', 's', 't', 'O', 'T', 'T', 'O',
-		0, 1, 1, 1, 2,                    // Top DICT INDEX: count=1, offSize=1, offsets=[1,2]
-		0x8B,                             // Top DICT: charset=0 (ISOAdobe)
-		0, 0,                             // String INDEX: empty
-		0, 0,                             // Global Subr INDEX: empty
+	// --- Build CFF table ---
+	// Layout:
+	//   [0-3]  Header (4 bytes)
+	//   [4-16] Name INDEX (13 bytes: count=1, offSize=1, offsets=[1,9], "TestOTTO")
+	//   [17-?] Top DICT INDEX
+	//   [?]    String INDEX (2 bytes, empty)
+	//   [?]    Global Subr INDEX (2 bytes, empty)
+	//   [?]    Charset (3 bytes: format 0, SID 1)
+	//   [?]    CharStrings INDEX
+
+	cs0 := []byte{14} // endchar
+	cs1 := []byte{14} // endchar
+
+	charsetData := []byte{0, 0, 1} // format 0, SID=1 ("space")
+	strIdx := []byte{0, 0}
+	gsubrIdx := []byte{0, 0}
+
+	nameIdxBytes := []byte{0, 1, 1, 1, 9, 'T', 'e', 's', 't', 'O', 'T', 'T', 'O'}
+
+	// Iteratively compute correct offsets
+	var cffData []byte
+	// Start with overestimate: use 3 bytes per DICT integer (28, b1, b2)
+	// Each entry: 3 bytes value + 1 byte operator = 4 bytes. 2 entries = 8 bytes top dict data.
+	// Top DICT INDEX overhead: 2(count) + 1(offSize) + 2(offsets) = 5 + data
+	estTopDictSize := 5 + 8
+	estCharsetOff := 4 + len(nameIdxBytes) + estTopDictSize + len(strIdx) + len(gsubrIdx)
+
+	for pass := 0; pass < 5; pass++ {
+		charsetOff := estCharsetOff
+		charstringsOff := charsetOff + len(charsetData)
+
+		topDictData := make([]byte, 0, 16)
+		topDictData = appendTestDictInt(topDictData, int32(charsetOff))
+		topDictData = append(topDictData, 15)
+		topDictData = appendTestDictInt(topDictData, int32(charstringsOff))
+		topDictData = append(topDictData, 17)
+
+		topDictIdx := buildTestCFFINDEX([][]byte{topDictData})
+		newCharsetOff := 4 + len(nameIdxBytes) + len(topDictIdx) + len(strIdx) + len(gsubrIdx)
+
+		if newCharsetOff == estCharsetOff {
+			csIdx := buildTestCFFINDEX([][]byte{cs0, cs1})
+			buf := make([]byte, 0, 256)
+			buf = append(buf, 1, 0, 4, 1)
+			buf = append(buf, nameIdxBytes...)
+			buf = append(buf, topDictIdx...)
+			buf = append(buf, strIdx...)
+			buf = append(buf, gsubrIdx...)
+			buf = append(buf, charsetData...)
+			buf = append(buf, csIdx...)
+			cffData = buf
+			break
+		}
+		estCharsetOff = newCharsetOff
 	}
 
 	// post table (format 3.0 - 32 bytes)
 	postData := make([]byte, 32)
 	b = BinaryFrom(postData, false)
 	var neg100 int16 = -100
-	b.PutU32(0x00030000)   // format 3.0
-	b.PutU16(0)            // italicAngle (fixed)
-	b.PutU16(0)            // italicAngle frac
-	b.PutU16(uint16(neg100)) // underlinePosition
-	b.PutU16(uint16(50))     // underlineThickness
-	b.PutU32(0)            // isFixedPitch
-	b.PutU32(0)            // minMemType42
-	b.PutU32(0)            // maxMemType42
-	b.PutU32(0)            // minMemType1
-	b.PutU32(0)            // maxMemType1
+	b.PutU32(0x00030000)
+	b.PutU16(0)
+	b.PutU16(0)
+	b.PutU16(uint16(neg100))
+	b.PutU16(50)
+	b.PutU32(0)
+	b.PutU32(0)
+	b.PutU32(0)
+	b.PutU32(0)
+	b.PutU32(0)
 
-	// Assemble the font file
+	// --- Assemble font file ---
 	type tableEntry struct {
 		tag  string
 		data []byte
@@ -381,8 +499,8 @@ func generateMinimalOTTO(t *testing.T) []byte {
 	}
 
 	numTables := len(tables)
-	headerSize := 12 + 16*numTables
-	offset := uint32(headerSize)
+	fileHeaderSize := 12 + 16*numTables
+	offset := uint32(fileHeaderSize)
 
 	type tableOffset struct {
 		tag      string
