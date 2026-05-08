@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Go library (`github.com/venusliang/go-font`, package `gofont`) for parsing, editing, and writing TrueType font (.ttf) files. Supports WOFF, WOFF2, EOT, and TTC format parsing and serialization. It reads binary font data, deserializes all standard TrueType table structures, and can serialize modified fonts back to valid .ttf, .woff, .woff2, .eot, or .ttc files.
+A Go library (`github.com/venusliang/go-font`, package `gofont`) for parsing, editing, and writing TrueType font (.ttf) and OpenType/CFF font (.otf) files. Supports WOFF, WOFF2, EOT, and TTC format parsing and serialization. It reads binary font data, deserializes all standard TrueType table structures, and can serialize modified fonts back to valid .ttf, .woff, .woff2, .eot, or .ttc files.
 
 ## Commands
 
@@ -25,6 +25,10 @@ There is no linting, CI configuration, or Makefile in this project.
 
 The entry point is `Parse(data []byte)` in `ttf.go`, which returns a `TrueTypeFont` struct containing all parsed font tables. `Parse()` delegates to `parseFromOffset(data, offset)` which supports parsing a TTF at an arbitrary offset within a larger file (used by TTC). `Serialize() ([]byte, error)` in `serialize.go` writes a complete .ttf file from the struct.
 
+The `TrueTypeFont.version` field distinguishes font types:
+- `0x00010000` or `0x74727565` ("true"): TrueType outlines (glyf/loca tables)
+- `0x4F54544F` ("OTTO"): CFF outlines (CFF table, no glyf/loca)
+
 ### Binary I/O Layer
 
 - `binary.go` defines a `Binary` interface with `BigEndian` and `LittleEndian` implementations for sequential byte-level reading/writing. All TTF data is big-endian: `BinaryFrom(data, false)`.
@@ -38,7 +42,7 @@ Each TrueType table has its own file with a `parseXxx(data []byte)` function and
 |------|-------|-------|
 | `head.go` | `head` | Font header, bounding box, indexToLocFormat |
 | `name.go` | `name` | Font name strings, format 0 and 1 |
-| `maxp.go` | `maxp` | Maximum profile, glyph count (version is Fixed 16.16, read as U32) |
+| `maxp.go` | `maxp` | Maximum profile, glyph count (TrueType: 32 bytes v1; CFF: 6 bytes v0.5) |
 | `os_2..go` | `OS/2` | OS/2 metrics, versioned parsing/writing (v0-v5) |
 | `cmap.go` | `cmap` | Character-to-glyph mapping, subtable formats 0, 4, 6, 12 with `Map(rune) uint16` |
 | `table.go` | directory | `TableDirectory` struct and checksum calculation |
@@ -50,6 +54,8 @@ Each TrueType table has its own file with a `parseXxx(data []byte)` function and
 | `kern.go` | `kern` | Kerning table, format 0 |
 | `gpos.go` | `GPOS` | Glyph positioning, single substitution / pair positioning |
 | `gsub.go` | `GSUB` | Glyph substitution, single substitution |
+| `cff.go` | `CFF ` | CFF (Compact Font Format) structure: Header, INDEX, Top/Private DICT, Charset, CharStrings |
+| `cff_charstring.go` | — | Type 2 CharString bytecode interpreter, outline extraction (moveto/lineto/curveto) |
 
 ### Parse Order
 
@@ -57,6 +63,8 @@ Independent tables (head, OS/2, cmap, maxp, name, hhea, post) are parsed in the 
 - `hmtx` needs `hhea.numberOfHMetrics` + `maxp.numGlyphs`
 - `loca` needs `head.indexToLocFormat` + `maxp.numGlyphs`
 - `glyf` needs `loca` for glyph boundaries
+
+For CFF/OpenType fonts (version "OTTO"), the CFF table is parsed from `rawTables["CFF "]` after the directory loop. CFF parsing in `cff.go` follows the CFF spec structure: Header → Name INDEX → Top DICT INDEX → String INDEX → Global Subr INDEX → Charset → CharStrings INDEX → Private DICT → Local Subr INDEX.
 
 ### Test Pattern
 
@@ -73,6 +81,7 @@ Each table has a `_test.go` file with `TestParseXxx` (value assertions) and `Tes
 - **Font metrics**: `UnitsPerEm`, `FontBBox`, `Ascent`, `Descent`, `AdvanceWidth`, `AdvanceWidthForRune`, `LeftSideBearing`, `SetAdvanceWidth`, `SetLeftSideBearing`
 - **Font names**: `FontFamily`, `FontFullName`, `SetFontFamily`, `SetFontFullName`
 - **Subset**: `Subset(keepRunes)` keeps only glyphs needed for specified characters
+- **CFF**: `IsCFF`, `CFFFontName`, `CFFGlyphName`, `CFFOutlineAt`, `CFFOutlineForRune`
 
 The abstract cmap layer uses `map[rune]uint16` (lazily initialized from parsed cmap via `Enumerate`). When `Serialize()` is called and the map is non-nil, `rebuildCmap()` regenerates the binary cmap from the abstract map.
 
@@ -97,3 +106,6 @@ TTC (TrueType Collection) is a container format that bundles multiple fonts in o
 - `calcTableChecksum` in `table.go` pads data to 4-byte boundaries. The `head` table's `checksumAdjustment` field must be zeroed before checksum calculation.
 - `writeCmap` handles duplicate subtable offsets (multiple encoding records pointing to the same subtable data).
 - `TrueTypeFont.Serialize()` sorts tables alphabetically by tag, pads to 4-byte alignment, and patches `head.checksumAdjustment = 0xB1B0AFBA - wholeFileChecksum`.
+- `rawTables` in `TrueTypeFont` stores raw bytes for tables not natively parsed (e.g. `CFF `). These are written back as-is during serialization for lossless round-trip.
+- `NumGlyphs()` uses `len(glyf)` for TrueType fonts and `maxp.numGlyphs` for CFF fonts.
+- CFF charstring outlines are decoded lazily via `DecodeOutlines()` using a Type 2 VM with a 48-entry operand stack, subroutine support (local + global), and 10-level call depth limit.
