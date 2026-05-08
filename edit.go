@@ -810,3 +810,32 @@ func (ttf *TrueTypeFont) CFFGlyphName(glyphID int) string {
 	}
 	return ""
 }
+
+// CFFOutlineAt decodes and returns the CFF outline for the glyph at index.
+// Returns nil for non-CFF fonts or out-of-range indices.
+func (ttf *TrueTypeFont) CFFOutlineAt(index int) *CFFOutline {
+	if ttf.cff == nil {
+		return nil
+	}
+	if index < 0 || index >= ttf.NumGlyphs() {
+		return nil
+	}
+	outlines, err := ttf.cff.DecodeOutlines()
+	if err != nil {
+		return nil
+	}
+	if index >= len(outlines) {
+		return nil
+	}
+	return outlines[index]
+}
+
+// CFFOutlineForRune decodes and returns the CFF outline for the glyph mapped to r.
+// Returns nil for non-CFF fonts or unmapped runes.
+func (ttf *TrueTypeFont) CFFOutlineForRune(r rune) *CFFOutline {
+	gid := ttf.RuneToGlyphID(r)
+	if gid == 0 {
+		return nil
+	}
+	return ttf.CFFOutlineAt(int(gid))
+}
