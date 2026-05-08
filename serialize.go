@@ -71,6 +71,10 @@ func (ttf *TrueTypeFont) Serialize() ([]byte, error) {
 	if ttf.gsub != nil {
 		tables = append(tables, tableEntry{"GSUB", writeGsub(ttf.gsub)})
 	}
+	// Write raw (unparsed) tables as-is for round-trip support (e.g. "CFF ")
+	for tag, raw := range ttf.rawTables {
+		tables = append(tables, tableEntry{tag, raw})
+	}
 
 	numTables := len(tables)
 

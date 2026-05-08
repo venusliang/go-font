@@ -24,6 +24,9 @@ type TrueTypeFont struct {
 	gpos          *GPOS
 	gsub          *GSUB
 	runeToGlyphID map[rune]uint16
+	// rawTables holds raw bytes for tables not natively parsed (e.g. "CFF ").
+	// These are preserved for round-trip serialization.
+	rawTables map[string][]byte
 }
 
 // Parse parses TTF binary data and returns a TrueTypeFont.
@@ -38,7 +41,8 @@ func parseFromOffset(data []byte, offset uint32) (ttf TrueTypeFont, err error) {
 	binary := BinaryFrom(data[offset:], false)
 
 	ttf.version = binary.U32()
-	if ttf.version != 0x00010000 && ttf.version != 0x74727565 {
+	// 0x00010000 = TrueType, 0x74727565 = "true" (Apple), 0x4F54544F = "OTTO" (CFF/OpenType)
+	if ttf.version != 0x00010000 && ttf.version != 0x74727565 && ttf.version != 0x4F54544F {
 		err = fmt.Errorf("invalid version: %x", ttf.version)
 		return
 	}
@@ -49,6 +53,14 @@ func parseFromOffset(data []byte, offset uint32) (ttf TrueTypeFont, err error) {
 	ttf.rangeShift = binary.U16()
 
 	ttf.directorys = make(map[string]TableDirectory)
+	ttf.rawTables = make(map[string][]byte)
+
+	// Known table tags that are parsed natively
+	parsedTags := map[string]bool{
+		"head": true, "OS/2": true, "cmap": true, "maxp": true,
+		"name": true, "hhea": true, "post": true, "kern": true,
+		"GPOS": true, "GSUB": true, "hmtx": true, "loca": true, "glyf": true,
+	}
 
 	for i := 0; i < int(ttf.numTables); i++ {
 		name := string(binary.Bytes(4))
@@ -110,6 +122,14 @@ func parseFromOffset(data []byte, offset uint32) (ttf TrueTypeFont, err error) {
 		if err != nil {
 			return
 		}
+
+		// Save raw bytes for tables we don't natively parse (e.g. "CFF "),
+		// so they can be serialized back during round-trip.
+		if !parsedTags[name] {
+			rawCopy := make([]byte, len(table))
+			copy(rawCopy, table)
+			ttf.rawTables[name] = rawCopy
+		}
 	}
 
 	// Parse dependent tables (require data from other tables)
@@ -121,6 +141,7 @@ func parseFromOffset(data []byte, offset uint32) (ttf TrueTypeFont, err error) {
 		}
 	}
 
+	// glyf/loca only exist in TrueType fonts (not CFF/OpenType)
 	if dir, ok := ttf.directorys["loca"]; ok && ttf.head != nil && ttf.maxp != nil {
 		table := ttf.getTableData(dir)
 		ttf.loca, err = parseLoca(table, int(ttf.maxp.numGlyphs), ttf.head.indexToLocFormat)
@@ -140,6 +161,11 @@ func parseFromOffset(data []byte, offset uint32) (ttf TrueTypeFont, err error) {
 	}
 
 	return
+}
+
+// IsCFF reports whether the font uses CFF outlines (OpenType/CFF, version "OTTO").
+func (ttf *TrueTypeFont) IsCFF() bool {
+	return ttf.version == 0x4F54544F
 }
 
 func (ttf *TrueTypeFont) getTableData(dir TableDirectory) []byte {

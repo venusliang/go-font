@@ -21,34 +21,48 @@ type Maxp struct {
 }
 
 func parseMaxp(data []byte) (*Maxp, error) {
-	if len(data) < 32 {
+	if len(data) < 6 {
 		return nil, errors.New("maxp table too short")
 	}
 
 	binary := BinaryFrom(data, false)
 
 	maxp := &Maxp{
-		version:               binary.U32(),
-		numGlyphs:             binary.U16(),
-		maxPoints:             binary.U16(),
-		maxContours:           binary.U16(),
-		maxCompositePoints:    binary.U16(),
-		maxCompositeContours:  binary.U16(),
-		maxZones:              binary.U16(),
-		maxTwilightPoints:     binary.U16(),
-		maxStorage:            binary.U16(),
-		maxFunctionDefs:       binary.U16(),
-		maxInstructionDefs:    binary.U16(),
-		maxStackElements:      binary.U16(),
-		maxSizeOfInstructions: binary.U16(),
-		maxComponentElements:  binary.U16(),
-		maxComponentDepth:     binary.U16(),
+		version:   binary.U32(),
+		numGlyphs: binary.U16(),
+	}
+
+	// CFF fonts (version 0x00005000) only have version + numGlyphs (6 bytes).
+	// TrueType fonts (version 0x00010000) have the full 32-byte structure.
+	if maxp.version == 0x00010000 && len(data) >= 32 {
+		maxp.maxPoints = binary.U16()
+		maxp.maxContours = binary.U16()
+		maxp.maxCompositePoints = binary.U16()
+		maxp.maxCompositeContours = binary.U16()
+		maxp.maxZones = binary.U16()
+		maxp.maxTwilightPoints = binary.U16()
+		maxp.maxStorage = binary.U16()
+		maxp.maxFunctionDefs = binary.U16()
+		maxp.maxInstructionDefs = binary.U16()
+		maxp.maxStackElements = binary.U16()
+		maxp.maxSizeOfInstructions = binary.U16()
+		maxp.maxComponentElements = binary.U16()
+		maxp.maxComponentDepth = binary.U16()
 	}
 
 	return maxp, nil
 }
 
 func writeMaxp(maxp *Maxp) []byte {
+	// CFF fonts use 6-byte maxp (version 0x00005000)
+	if maxp.version != 0x00010000 {
+		data := make([]byte, 6)
+		binary := BinaryFrom(data, false)
+		binary.PutU32(maxp.version)
+		binary.PutU16(maxp.numGlyphs)
+		return data
+	}
+
 	data := make([]byte, 32)
 	binary := BinaryFrom(data, false)
 
