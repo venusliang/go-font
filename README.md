@@ -1,6 +1,6 @@
 # go-font
 
-Go 语言 TrueType 字体（.ttf）解析、编辑与序列化库，支持 WOFF / WOFF2 / EOT 格式。
+Go 语言 TrueType 字体（.ttf）与 OpenType/CFF 字体（.otf）解析、编辑与序列化库，支持 WOFF / WOFF2 / EOT / TTC 格式。
 
 ## 安装
 
@@ -21,10 +21,10 @@ import (
 )
 
 func main() {
-    // 读取字体文件
+    // 读取 TTF 字体文件
     data, _ := os.ReadFile("myfont.ttf")
 
-    // 解析
+    // 解析（也支持 .otf 文件，自动识别）
     ttf, err := gofont.Parse(data)
     if err != nil {
         panic(err)
@@ -45,7 +45,7 @@ func main() {
 
 | 方法 | 说明 |
 |------|------|
-| `Parse(data []byte) (TrueTypeFont, error)` | 解析 TTF 二进制数据，返回字体对象 |
+| `Parse(data []byte) (TrueTypeFont, error)` | 解析 TTF/OTF 二进制数据，返回字体对象（自动识别 TrueType 和 OpenType/CFF） |
 | `ParseWOFF(data []byte) (TrueTypeFont, error)` | 解析 WOFF 二进制数据，返回字体对象 |
 | `ParseWOFF2(data []byte) (TrueTypeFont, error)` | 解析 WOFF2 二进制数据，返回字体对象 |
 | `ParseEOT(data []byte) (TrueTypeFont, error)` | 解析 EOT 二进制数据，返回字体对象 |
@@ -113,6 +113,18 @@ func main() {
 | `FontFullName() string` | 获取字体全名 |
 | `SetFontFamily(name)` | 设置字体族名 |
 | `SetFontFullName(name)` | 设置字体全名 |
+
+### CFF（OpenType/CFF）支持
+
+以下方法用于 CFF 轮廓字体（`.otf` 文件），TrueType 轮廓字体调用时返回零值或 nil。
+
+| 方法 | 说明 |
+|------|------|
+| `IsCFF() bool` | 判断字体是否使用 CFF 轮廓（OpenType/CFF） |
+| `CFFFontName() string` | 获取 CFF 字体名称，非 CFF 字体返回空字符串 |
+| `CFFGlyphName(glyphID int) string` | 获取指定字形的 CFF 名称，非 CFF 字体返回空字符串 |
+| `CFFOutlineAt(index int) *CFFOutline` | 按索引获取 CFF 字形轮廓，越界或非 CFF 返回 nil |
+| `CFFOutlineForRune(r rune) *CFFOutline` | 根据Unicode码点获取 CFF 字形轮廓 |
 
 ### 多格式支持
 
@@ -192,19 +204,57 @@ ttcOut, _ := gofont.SerializeTTC(fonts)
 - 支持 version 1.0 和 2.0
 - 序列化时每个字体独立打包，表偏移自动调整为 TTC 相对偏移
 
+#### OTF（OpenType/CFF）
+
+```go
+data, _ := os.ReadFile("myfont.otf")
+ttf, _ := gofont.Parse(data)
+
+// 判断是否为 CFF 轮廓字体
+if ttf.IsCFF() {
+    fmt.Printf("CFF 字体名: %s\n", ttf.CFFFontName())
+
+    // 获取字形轮廓
+    outline := ttf.CFFOutlineAt(0)
+    if outline != nil {
+        fmt.Printf("轮廓段数: %d\n", outline.NumSegments())
+        for _, seg := range outline.Segments() {
+            fmt.Printf("  %v: %v\n", seg.Op, seg.Args)
+        }
+    }
+
+    // 通过 Unicode 查询轮廓
+    outline = ttf.CFFOutlineForRune('A')
+}
+
+// OTF 也可以序列化为 TTF（保留 CFF 原始表数据）
+out, _ := ttf.Serialize()
+os.WriteFile("output.otf", out, 0644)
+```
+
+- 使用 `Parse()` 即可解析 OTF 文件，自动识别 TrueType 和 CFF 轮廓
+- 支持解析 CFF Header、Name INDEX、Top DICT、String INDEX、Charset、CharStrings INDEX、Private DICT
+- 支持 Type 2 CharString 轮廓解码（moveto/lineto/curveto 等操作码，含子例程调用）
+- 序列化时保留 CFF 原始表数据，支持完整的 round-trip
+
 #### 格式限制
 
 | 格式 | 限制 |
 |------|------|
+| OTF | CFF 轮廓支持只读访问和序列化回写，不支持修改 CFF CharString 数据后重新编码 |
 | WOFF | 无 |
 | WOFF2 | 序列化时不做 glyf/loca/hmtx 表变换，压缩率略低于官方工具 |
-| EOT | 不支持 MTX（MicroType Express）压缩，遇到时返回错误；不支持 CFF（OpenType with CFF）字体 |
+| EOT | 不支持 MTX（MicroType Express）压缩，遇到时返回错误 |
 | EOT | 仅支持 TrueType 轮廓（glyf 表），不支持 CFF 轮廓 |
 | TTC | 不支持表共享（序列化时每个字体独立打包，不合并共享表） |
 
 #### 格式互转
 
 ```go
+// 读取 OTF，输出为 TTF（CFF 表原样保留）
+ttf, _ := gofont.Parse(otfData)
+ttfOut, _ := ttf.Serialize()
+
 // 读取 WOFF2，输出为 TTF
 ttf, _ := gofont.ParseWOFF2(woff2Data)
 ttfOut, _ := ttf.Serialize()
@@ -398,6 +448,43 @@ ttf.SetFontFullName("MyFont Regular")
 out, _ := ttf.Serialize()
 ```
 
+### 解析 OpenType/CFF 字体
+
+```go
+data, _ := os.ReadFile("myfont.otf")
+ttf, _ := gofont.Parse(data)
+
+// 判断字体类型
+if ttf.IsCFF() {
+    fmt.Printf("CFF 字体名: %s\n", ttf.CFFFontName())
+    fmt.Printf("字形数: %d\n", ttf.NumGlyphs())
+
+    // 获取字形名称
+    name := ttf.CFFGlyphName(1)
+    fmt.Printf("字形1名称: %s\n", name)
+
+    // 解码 CFF 轮廓
+    outline := ttf.CFFOutlineForRune('A')
+    if outline != nil {
+        fmt.Printf("轮廓段数: %d\n", outline.NumSegments())
+        for _, seg := range outline.Segments() {
+            switch seg.Op {
+            case gofont.CFFOpMoveTo:
+                fmt.Printf("  moveto %v\n", seg.Args[:2])
+            case gofont.CFFOpLineTo:
+                fmt.Printf("  lineto %v\n", seg.Args[:2])
+            case gofont.CFFOpCurveTo:
+                fmt.Printf("  curveto %v\n", seg.Args[:6])
+            }
+        }
+    }
+}
+
+// 序列化（CFF 原始表数据完整保留）
+out, _ := ttf.Serialize()
+os.WriteFile("output.otf", out, 0644)
+```
+
 ### 字形几何变换
 
 ```go
@@ -485,6 +572,27 @@ type GlyphComponent struct {
 }
 ```
 
+### CFFOutline
+
+```go
+type CFFOutline struct {
+    // CFF Type 2 CharString 解码后的轮廓数据
+}
+
+type CFFPathSegment struct {
+    Op   CFFPathOp  // 操作类型：CFFOpMoveTo / CFFOpLineTo / CFFOpCurveTo
+    Args [6]int32   // 坐标参数（MoveTo/LineTo 用前2个，CurveTo 用全部6个）
+}
+
+const (
+    CFFOpMoveTo  CFFPathOp = iota  // 移动到新位置
+    CFFOpLineTo                     // 直线段
+    CFFOpCurveTo                    // 三次贝塞尔曲线
+)
+```
+
+> CFF 轮廓使用三次贝塞尔曲线（每个曲线段有2个控制点），TrueType 轮廓使用二次贝塞尔曲线。
+
 ## 支持的字体表
 
 | 表 | 文件 | 说明 |
@@ -502,12 +610,15 @@ type GlyphComponent struct {
 | `kern` | `kern.go` | 字距调整表 |
 | `GPOS` | `gpos.go` | 字形定位表 |
 | `GSUB` | `gsub.go` | 字形替换表 |
+| `CFF ` | `cff.go` | Compact Font Format 表（OpenType/CFF 字体） |
+| CharString | `cff_charstring.go` | CFF Type 2 CharString 轮廓解码 |
 
 ## 支持的字体格式
 
 | 格式 | 文件 | 解析 | 序列化 | 说明 |
 |------|------|------|--------|------|
 | TTF | `ttf.go` / `serialize.go` | `Parse()` | `Serialize()` | TrueType 字体 |
+| OTF | `ttf.go` / `cff.go` | `Parse()` | `Serialize()` | OpenType/CFF 字体 |
 | WOFF | `woff.go` | `ParseWOFF()` | `SerializeWOFF()` | zlib 逐表压缩 |
 | WOFF2 | `woff2.go` | `ParseWOFF2()` | `SerializeWOFF2()` | Brotli 整体压缩 |
 | EOT | `eot.go` | `ParseEOT()` | `SerializeEOT()` | 微软嵌入式字体 |

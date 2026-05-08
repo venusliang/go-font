@@ -109,3 +109,7 @@ TTC (TrueType Collection) is a container format that bundles multiple fonts in o
 - `rawTables` in `TrueTypeFont` stores raw bytes for tables not natively parsed (e.g. `CFF `). These are written back as-is during serialization for lossless round-trip.
 - `NumGlyphs()` uses `len(glyf)` for TrueType fonts and `maxp.numGlyphs` for CFF fonts.
 - CFF charstring outlines are decoded lazily via `DecodeOutlines()` using a Type 2 VM with a 48-entry operand stack, subroutine support (local + global), and 10-level call depth limit.
+
+## Git Rules
+
+- Do NOT use `Co-Authored-By: Claude` or any default Claude user in commit messages. Only use the configured git account for all commits and pushes.
