@@ -111,12 +111,13 @@ func read255UInt16(data []byte, offset *int) (uint16, error) {
 	}
 }
 
-// signInt16 returns -1 if the bit at pos in flag is set, 1 otherwise.
+// signInt16 returns 1 if the bit at pos in flag is set (positive delta),
+// -1 otherwise (negative delta).
 func signInt16(flag byte, pos uint) int16 {
 	if flag&(1<<pos) != 0 {
-		return -1
+		return 1
 	}
-	return 1
+	return -1
 }
 
 // --- WOFF2 table directory entry ---

@@ -8,15 +8,20 @@ type TableDirectory struct {
 }
 
 func calcTableChecksum(table []byte) uint32 {
-	if len(table)%4 != 0 {
-		l := 4 - len(table)%4
-		pad := make([]byte, l)
-		table = append(table, pad...)
-	}
-
 	var sum uint32
-	for i := 0; i < len(table); i += 4 {
+	n := len(table)
+	for i := 0; i+3 < n; i += 4 {
 		sum += uint32(table[i])<<24 | uint32(table[i+1])<<16 | uint32(table[i+2])<<8 | uint32(table[i+3])
+	}
+	// Handle trailing bytes with zero-padding
+	rem := n % 4
+	if rem > 0 {
+		start := n - rem
+		var last uint32
+		for i := 0; i < rem; i++ {
+			last |= uint32(table[start+i]) << uint(24-8*i)
+		}
+		sum += last
 	}
 	return sum
 }
