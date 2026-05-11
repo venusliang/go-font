@@ -19,27 +19,28 @@ func getHmtx(t *testing.T) *Hmtx {
 func TestParseHmtx(t *testing.T) {
 	hmtx := getHmtx(t)
 
-	if len(hmtx.hMetrics) != 43 {
-		t.Fatalf("hMetrics count: got %d, want 43", len(hmtx.hMetrics))
+	if len(hmtx.hMetrics) != 29354 {
+		t.Fatalf("hMetrics count: got %d, want 29354", len(hmtx.hMetrics))
 	}
 	if len(hmtx.leftSideBearing) != 0 {
 		t.Errorf("leftSideBearing count: got %d, want 0 (numHMetrics == numGlyphs)", len(hmtx.leftSideBearing))
 	}
 
 	// First metric
-	if hmtx.hMetrics[0].advanceWidth != 429 {
-		t.Errorf("hMetrics[0].advanceWidth: got %d, want 429", hmtx.hMetrics[0].advanceWidth)
+	if hmtx.hMetrics[0].advanceWidth != 1428 {
+		t.Errorf("hMetrics[0].advanceWidth: got %d, want 1428", hmtx.hMetrics[0].advanceWidth)
 	}
-	if hmtx.hMetrics[0].lsb != 50 {
-		t.Errorf("hMetrics[0].lsb: got %d, want 50", hmtx.hMetrics[0].lsb)
+	if hmtx.hMetrics[0].lsb != 179 {
+		t.Errorf("hMetrics[0].lsb: got %d, want 179", hmtx.hMetrics[0].lsb)
 	}
 
 	// Last metric
-	if hmtx.hMetrics[42].advanceWidth != 1354 {
-		t.Errorf("hMetrics[42].advanceWidth: got %d, want 1354", hmtx.hMetrics[42].advanceWidth)
+	lastIdx := len(hmtx.hMetrics) - 1
+	if hmtx.hMetrics[lastIdx].advanceWidth != 1024 {
+		t.Errorf("hMetrics[%d].advanceWidth: got %d, want 1024", lastIdx, hmtx.hMetrics[lastIdx].advanceWidth)
 	}
-	if hmtx.hMetrics[42].lsb != 8 {
-		t.Errorf("hMetrics[42].lsb: got %d, want 8", hmtx.hMetrics[42].lsb)
+	if hmtx.hMetrics[lastIdx].lsb != 40 {
+		t.Errorf("hMetrics[%d].lsb: got %d, want 40", lastIdx, hmtx.hMetrics[lastIdx].lsb)
 	}
 }
 

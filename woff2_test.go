@@ -16,8 +16,8 @@ func loadWOFF2(t *testing.T) []byte {
 	t.Helper()
 	woff2DataOnce.Do(func() {
 		paths := []string{
-			"fonts/fonteditor.woff2",
-			filepath.Join("..", "fonts", "fonteditor.woff2"),
+			"testdata/roboto-latin-600-italic.woff2",
+			filepath.Join("..", "testdata", "roboto-latin-600-italic.woff2"),
 		}
 		var err error
 		for _, p := range paths {
@@ -27,7 +27,7 @@ func loadWOFF2(t *testing.T) []byte {
 			}
 		}
 		if woff2Data == nil {
-			panic("fonts/fonteditor.woff2 not found: " + err.Error())
+			panic("testdata/roboto-latin-600-italic.woff2 not found: " + err.Error())
 		}
 	})
 	return woff2Data
@@ -42,8 +42,8 @@ func TestParseWOFF2(t *testing.T) {
 	if ttf.head == nil {
 		t.Fatal("head table is nil after WOFF2 parse")
 	}
-	if ttf.head.unitsPerEm != 1024 {
-		t.Errorf("unitsPerEm: got %d, want 1024", ttf.head.unitsPerEm)
+	if ttf.head.unitsPerEm != 2048 {
+		t.Errorf("unitsPerEm: got %d, want 2048", ttf.head.unitsPerEm)
 	}
 	if ttf.maxp == nil {
 		t.Fatal("maxp table is nil")
@@ -116,7 +116,7 @@ func TestTTFToWOFF2(t *testing.T) {
 }
 
 func TestWOFF2ToTTF(t *testing.T) {
-	// Parse WOFF2 → serialize to TTF → parse TTF → compare
+	// Parse WOFF2 → serialize to TTF → parse TTF → compare (same font round-trip)
 	ttf, err := ParseWOFF2(loadWOFF2(t))
 	if err != nil {
 		t.Fatal(err)
@@ -132,22 +132,17 @@ func TestWOFF2ToTTF(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Compare with original TTF
-	origTTF, err := Parse(loadFont(t))
-	if err != nil {
-		t.Fatal(err)
+	// Verify round-trip: WOFF2 → TTF → Parse preserves metrics
+	if ttf2.head.unitsPerEm != ttf.head.unitsPerEm {
+		t.Errorf("unitsPerEm mismatch: %d vs %d", ttf2.head.unitsPerEm, ttf.head.unitsPerEm)
 	}
-
-	if ttf2.head.unitsPerEm != origTTF.head.unitsPerEm {
-		t.Errorf("unitsPerEm mismatch: %d vs %d", ttf2.head.unitsPerEm, origTTF.head.unitsPerEm)
+	if ttf2.maxp.numGlyphs != ttf.maxp.numGlyphs {
+		t.Errorf("numGlyphs mismatch: %d vs %d", ttf2.maxp.numGlyphs, ttf.maxp.numGlyphs)
 	}
-	if ttf2.maxp.numGlyphs != origTTF.maxp.numGlyphs {
-		t.Errorf("numGlyphs mismatch: %d vs %d", ttf2.maxp.numGlyphs, origTTF.maxp.numGlyphs)
-	}
-	if ttf2.head.xMin != origTTF.head.xMin || ttf2.head.yMin != origTTF.head.yMin {
+	if ttf2.head.xMin != ttf.head.xMin || ttf2.head.yMin != ttf.head.yMin {
 		t.Errorf("bbox min mismatch")
 	}
-	if ttf2.head.xMax != origTTF.head.xMax || ttf2.head.yMax != origTTF.head.yMax {
+	if ttf2.head.xMax != ttf.head.xMax || ttf2.head.yMax != ttf.head.yMax {
 		t.Errorf("bbox max mismatch")
 	}
 }

@@ -269,8 +269,15 @@ func glyphEncodedSize(g *Glyph) int {
 		return 0
 	}
 
-	// Estimate generously, write to temp buffer, return actual size
-	est := 10 + 1000 // generous estimate
+	// Estimate generously: header(10) + points*(5 worst case) + endpoints + instructions
+	est := 10 + 1000 // minimum generous estimate
+	if g.simpleGlyph != nil {
+		n := len(g.simpleGlyph.xCoordinates)
+		est = 10 + 2*len(g.simpleGlyph.endPtsOfContours) + 2 + len(g.simpleGlyph.instructions) + n*6
+	}
+	if est < 2000 {
+		est = 2000
+	}
 	tmp := make([]byte, est)
 	binary := BinaryFrom(tmp, false)
 	writeGlyph(binary, g)

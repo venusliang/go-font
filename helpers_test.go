@@ -11,8 +11,8 @@ func TestUnitsPerEm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if v := ttf.UnitsPerEm(); v != 1024 {
-		t.Errorf("UnitsPerEm: got %d, want 1024", v)
+	if v := ttf.UnitsPerEm(); v != 2048 {
+		t.Errorf("UnitsPerEm: got %d, want 2048", v)
 	}
 }
 
@@ -60,8 +60,8 @@ func TestAdvanceWidth(t *testing.T) {
 	}
 
 	// Out of range
-	if w := ttf.AdvanceWidth(100); w != 0 {
-		t.Errorf("AdvanceWidth(100): got %d, want 0", w)
+	if w := ttf.AdvanceWidth(50000); w != 0 {
+		t.Errorf("AdvanceWidth(50000): got %d, want 0", w)
 	}
 }
 
@@ -74,8 +74,8 @@ func TestLeftSideBearing(t *testing.T) {
 	_ = lsb // just verify it doesn't crash
 
 	// Out of range
-	if lsb := ttf.LeftSideBearing(100); lsb != 0 {
-		t.Errorf("LeftSideBearing(100): got %d, want 0", lsb)
+	if lsb := ttf.LeftSideBearing(50000); lsb != 0 {
+		t.Errorf("LeftSideBearing(50000): got %d, want 0", lsb)
 	}
 }
 
@@ -84,16 +84,16 @@ func TestAdvanceWidthForRune(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 0xE001 maps to glyph 1
-	w := ttf.AdvanceWidthForRune(0xE001)
-	w1 := ttf.AdvanceWidth(1)
-	if w != w1 {
-		t.Errorf("AdvanceWidthForRune(0xE001)=%d != AdvanceWidth(1)=%d", w, w1)
+	// U+0020 maps to glyph 3
+	w := ttf.AdvanceWidthForRune(0x0020)
+	w3 := ttf.AdvanceWidth(3)
+	if w != w3 {
+		t.Errorf("AdvanceWidthForRune(0x0020)=%d != AdvanceWidth(3)=%d", w, w3)
 	}
 
 	// Unmapped rune
-	if w := ttf.AdvanceWidthForRune(0x41); w != 0 {
-		t.Errorf("AdvanceWidthForRune('A'): got %d, want 0", w)
+	if w := ttf.AdvanceWidthForRune(0xE001); w != 0 {
+		t.Errorf("AdvanceWidthForRune(0xE001): got %d, want 0", w)
 	}
 }
 
@@ -113,7 +113,7 @@ func TestIsSimpleGlyph(t *testing.T) {
 	if ttf.IsSimpleGlyph(-1) {
 		t.Error("index -1 should not be simple")
 	}
-	if ttf.IsSimpleGlyph(100) {
+	if ttf.IsSimpleGlyph(50000) {
 		t.Error("index 100 should not be simple")
 	}
 }
@@ -127,13 +127,13 @@ func TestGlyphBBox(t *testing.T) {
 	if !ok {
 		t.Fatal("GlyphBBox(0) ok=false")
 	}
-	if xMin != 50 || yMin != -112 || xMax != 379 || yMax != 712 {
-		t.Errorf("GlyphBBox(0): got (%d,%d,%d,%d), want (50,-112,379,712)", xMin, yMin, xMax, yMax)
+	if xMin != 179 || yMin != 0 || xMax != 1248 || yMax != 1510 {
+		t.Errorf("GlyphBBox(0): got (%d,%d,%d,%d), want (179,0,1248,1510)", xMin, yMin, xMax, yMax)
 	}
 
-	_, _, _, _, ok = ttf.GlyphBBox(100)
+	_, _, _, _, ok = ttf.GlyphBBox(50000)
 	if ok {
-		t.Error("GlyphBBox(100) should return ok=false")
+		t.Error("GlyphBBox(50000) should return ok=false")
 	}
 }
 
@@ -146,12 +146,12 @@ func TestPointCount(t *testing.T) {
 	if n := ttf.PointCount(0); n != 8 {
 		t.Errorf("PointCount(0): got %d, want 8", n)
 	}
-	// glyph 1 has 78 points
-	if n := ttf.PointCount(1); n != 78 {
-		t.Errorf("PointCount(1): got %d, want 78", n)
+	// glyph 4 has 16 points
+	if n := ttf.PointCount(4); n != 16 {
+		t.Errorf("PointCount(4): got %d, want 16", n)
 	}
-	if n := ttf.PointCount(100); n != 0 {
-		t.Errorf("PointCount(100): got %d, want 0", n)
+	if n := ttf.PointCount(50000); n != 0 {
+		t.Errorf("PointCount(50000): got %d, want 0", n)
 	}
 }
 
@@ -163,11 +163,11 @@ func TestContourCount(t *testing.T) {
 	if n := ttf.ContourCount(0); n != 2 {
 		t.Errorf("ContourCount(0): got %d, want 2", n)
 	}
-	if n := ttf.ContourCount(1); n != 1 {
-		t.Errorf("ContourCount(1): got %d, want 1", n)
+	if n := ttf.ContourCount(4); n != 2 {
+		t.Errorf("ContourCount(4): got %d, want 2", n)
 	}
-	if n := ttf.ContourCount(100); n != 0 {
-		t.Errorf("ContourCount(100): got %d, want 0", n)
+	if n := ttf.ContourCount(50000); n != 0 {
+		t.Errorf("ContourCount(50000): got %d, want 0", n)
 	}
 }
 
@@ -208,7 +208,7 @@ func TestSetAdvanceWidth(t *testing.T) {
 	}
 
 	// Out of range
-	err = ttf.SetAdvanceWidth(100, 500)
+	err = ttf.SetAdvanceWidth(50000, 500)
 	if err == nil {
 		t.Error("expected error for out-of-range glyph ID")
 	}
@@ -296,8 +296,8 @@ func TestTranslateGlyph(t *testing.T) {
 
 	// Verify coordinates shifted
 	g := ttf.GlyphAt(0)
-	if g.simpleGlyph.xCoordinates[0] != 150 { // original 50 + 100
-		t.Errorf("x[0] after translate: got %d, want 150", g.simpleGlyph.xCoordinates[0])
+	if g.simpleGlyph.xCoordinates[0] != 279 { // original 179 + 100
+		t.Errorf("x[0] after translate: got %d, want 279", g.simpleGlyph.xCoordinates[0])
 	}
 }
 
@@ -313,16 +313,16 @@ func TestScaleGlyph(t *testing.T) {
 	}
 
 	xMin, _, xMax, _, _ := ttf.GlyphBBox(0)
-	// Original was (50, -112, 379, 712) — scaled by 2x
-	if xMin != 100 {
-		t.Errorf("xMin after scale: got %d, want 100", xMin)
+	// Original was (179, 0, 1248, 1510) — scaled by 2x
+	if xMin != 358 {
+		t.Errorf("xMin after scale: got %d, want 358", xMin)
 	}
-	if xMax != 758 {
-		t.Errorf("xMax after scale: got %d, want 758", xMax)
+	if xMax != 2496 {
+		t.Errorf("xMax after scale: got %d, want 2496", xMax)
 	}
 
 	// Out of range
-	err = ttf.ScaleGlyph(100, 1.0, 1.0)
+	err = ttf.ScaleGlyph(50000, 1.0, 1.0)
 	if err == nil {
 		t.Error("expected error for out-of-range index")
 	}
@@ -397,23 +397,23 @@ func TestSubset(t *testing.T) {
 
 	origCount := ttf.NumGlyphs()
 
-	// Keep only a few runes: glyph 0 (.notdef) + glyphs for E001, E002
-	err = ttf.Subset([]rune{0xE001, 0xE002})
+	// Keep only a few runes: glyph 0 (.notdef) + glyphs for 'A', 'B'
+	err = ttf.Subset([]rune{'A', 'B'})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Should have glyph 0 + glyph for E001 + glyph for E002 = 3
+	// Should have glyph 0 + glyph for 'A' + glyph for 'B' = 3
 	if n := ttf.NumGlyphs(); n != 3 {
 		t.Errorf("NumGlyphs after subset: got %d, want 3 (had %d before)", n, origCount)
 	}
 
 	// Verify mappings still work
-	if gid := ttf.RuneToGlyphID(0xE001); gid == 0 {
-		t.Error("0xE001 should still be mapped")
+	if gid := ttf.RuneToGlyphID('A'); gid == 0 {
+		t.Error("'A' should still be mapped")
 	}
-	if gid := ttf.RuneToGlyphID(0xE030); gid != 0 {
-		t.Errorf("0xE030 should be unmapped after subset, got %d", gid)
+	if gid := ttf.RuneToGlyphID('C'); gid != 0 {
+		t.Errorf("'C' should be unmapped after subset, got %d", gid)
 	}
 }
 
@@ -423,7 +423,7 @@ func TestSubsetSerialize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = ttf.Subset([]rune{0xE001, 0xE002, 0xE003})
+	err = ttf.Subset([]rune{'A', 'B', 'C'})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -443,8 +443,8 @@ func TestSubsetSerialize(t *testing.T) {
 	}
 
 	// Verify cmap works
-	if gid := ttf2.RuneToGlyphID(0xE001); gid == 0 {
-		t.Error("0xE001 should be mapped after round-trip")
+	if gid := ttf2.RuneToGlyphID('A'); gid == 0 {
+		t.Error("'A' should be mapped after round-trip")
 	}
 }
 
@@ -491,7 +491,7 @@ func TestSetRuneMappings(t *testing.T) {
 	}
 
 	// Out of range should fail
-	err = ttf.SetRuneMappings(map[rune]uint16{'D': 200})
+	err = ttf.SetRuneMappings(map[rune]uint16{'D': 50000})
 	if err == nil {
 		t.Error("expected error for out-of-range glyph ID")
 	}

@@ -22,22 +22,19 @@ func TestParseCmap(t *testing.T) {
 	if cmap.version != 0 {
 		t.Errorf("version: got %d, want 0", cmap.version)
 	}
-	if cmap.numTables != 3 {
-		t.Errorf("numTables: got %d, want 3", cmap.numTables)
+	if cmap.numTables != 2 {
+		t.Errorf("numTables: got %d, want 2", cmap.numTables)
 	}
-	if len(cmap.encodingRecords) != 3 {
-		t.Errorf("encodingRecords count: got %d, want 3", len(cmap.encodingRecords))
+	if len(cmap.encodingRecords) != 2 {
+		t.Errorf("encodingRecords count: got %d, want 2", len(cmap.encodingRecords))
 	}
 
 	// Check encoding records
 	if cmap.encodingRecords[0].platformID != 0 {
 		t.Errorf("record[0] platformID: got %d, want 0", cmap.encodingRecords[0].platformID)
 	}
-	if cmap.encodingRecords[1].platformID != 1 {
-		t.Errorf("record[1] platformID: got %d, want 1", cmap.encodingRecords[1].platformID)
-	}
-	if cmap.encodingRecords[2].platformID != 3 {
-		t.Errorf("record[2] platformID: got %d, want 3", cmap.encodingRecords[2].platformID)
+	if cmap.encodingRecords[1].platformID != 3 {
+		t.Errorf("record[1] platformID: got %d, want 3", cmap.encodingRecords[1].platformID)
 	}
 
 	// Check subtables were parsed
@@ -61,31 +58,31 @@ func TestCmapFormat4Map(t *testing.T) {
 		t.Fatal("no format 4 subtable found")
 	}
 
-	// U+E001 should map to glyph 1
-	if gid := f4.Map(0xE001); gid != 1 {
-		t.Errorf("Map(0xE001): got %d, want 1", gid)
+	// U+0020 (space) should map to glyph 3
+	if gid := f4.Map(0x0020); gid != 3 {
+		t.Errorf("Map(0x0020): got %d, want 3", gid)
 	}
 
-	// U+E002 should map to glyph 2
-	if gid := f4.Map(0xE002); gid != 2 {
-		t.Errorf("Map(0xE002): got %d, want 2", gid)
+	// U+0041 ('A') should map to glyph 39
+	if gid := f4.Map(0x0041); gid != 39 {
+		t.Errorf("Map(0x0041): got %d, want 39", gid)
 	}
 
-	// U+E030 should map to glyph 42
-	if gid := f4.Map(0xE030); gid != 42 {
-		t.Errorf("Map(0xE030): got %d, want 42", gid)
+	// U+4E00 (CJK '一') should map to glyph 9650
+	if gid := f4.Map(0x4E00); gid != 9650 {
+		t.Errorf("Map(0x4E00): got %d, want 9650", gid)
 	}
 
-	// U+0041 (ASCII 'A') should map to glyph 0 (not in cmap)
-	if gid := f4.Map(0x41); gid != 0 {
-		t.Errorf("Map(0x41): got %d, want 0 (not mapped)", gid)
+	// U+E001 should not be mapped in this font
+	if gid := f4.Map(0xE001); gid != 0 {
+		t.Errorf("Map(0xE001): got %d, want 0 (not mapped)", gid)
 	}
 }
 
 func TestCmapFormat0Map(t *testing.T) {
 	cmap := getCmap(t)
 
-	// Find format 0 subtable
+	// Find format 0 subtable (if present)
 	var f0 *CMapFormat0
 	for _, sub := range cmap.subtables {
 		if sub.Format() == 0 {
@@ -94,7 +91,8 @@ func TestCmapFormat0Map(t *testing.T) {
 		}
 	}
 	if f0 == nil {
-		t.Fatal("no format 0 subtable found")
+		t.Log("no format 0 subtable in this font (not all fonts have one)")
+		return
 	}
 
 	// Check that format 0 has 256 byte entries
@@ -136,11 +134,11 @@ func TestRoundTripCmap(t *testing.T) {
 	for _, sub := range cmap2.subtables {
 		if sub.Format() == 4 {
 			f4 := sub.(*CMapFormat4)
-			if gid := f4.Map(0xE001); gid != 1 {
-				t.Errorf("round-trip Map(0xE001): got %d, want 1", gid)
+			if gid := f4.Map(0x0020); gid != 3 {
+				t.Errorf("round-trip Map(0x0020): got %d, want 3", gid)
 			}
-			if gid := f4.Map(0xE030); gid != 42 {
-				t.Errorf("round-trip Map(0xE030): got %d, want 42", gid)
+			if gid := f4.Map(0x0041); gid != 39 {
+				t.Errorf("round-trip Map(0x0041): got %d, want 39", gid)
 			}
 		}
 	}

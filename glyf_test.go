@@ -19,8 +19,8 @@ func getGlyphs(t *testing.T) []*Glyph {
 func TestParseGlyf(t *testing.T) {
 	glyphs := getGlyphs(t)
 
-	if len(glyphs) != 43 {
-		t.Fatalf("glyph count: got %d, want 43", len(glyphs))
+	if len(glyphs) != 29354 {
+		t.Fatalf("glyph count: got %d, want 29354", len(glyphs))
 	}
 
 	// glyph[0]: 2 contours, 8 points
@@ -31,11 +31,11 @@ func TestParseGlyf(t *testing.T) {
 	if g0.simpleGlyph == nil {
 		t.Fatal("glyph[0] is not a simple glyph")
 	}
-	if g0.header.xMin != 50 || g0.header.yMin != -112 {
-		t.Errorf("glyph[0] bbox min: got (%d,%d), want (50,-112)", g0.header.xMin, g0.header.yMin)
+	if g0.header.xMin != 179 || g0.header.yMin != 0 {
+		t.Errorf("glyph[0] bbox min: got (%d,%d), want (179,0)", g0.header.xMin, g0.header.yMin)
 	}
-	if g0.header.xMax != 379 || g0.header.yMax != 712 {
-		t.Errorf("glyph[0] bbox max: got (%d,%d), want (379,712)", g0.header.xMax, g0.header.yMax)
+	if g0.header.xMax != 1248 || g0.header.yMax != 1510 {
+		t.Errorf("glyph[0] bbox max: got (%d,%d), want (1248,1510)", g0.header.xMax, g0.header.yMax)
 	}
 	if len(g0.simpleGlyph.endPtsOfContours) != 2 {
 		t.Errorf("glyph[0] contour count: got %d, want 2", len(g0.simpleGlyph.endPtsOfContours))
@@ -50,13 +50,13 @@ func TestParseGlyf(t *testing.T) {
 		t.Errorf("glyph[0] yCoordinates count: got %d, want 8", len(g0.simpleGlyph.yCoordinates))
 	}
 
-	// glyph[1]: 1 contour, 78 points
-	g1 := glyphs[1]
-	if g1.header.numberOfContours != 1 {
-		t.Errorf("glyph[1] numberOfContours: got %d, want 1", g1.header.numberOfContours)
+	// glyph[4]: 2 contours, 16 points
+	g4 := glyphs[4]
+	if g4.header.numberOfContours != 2 {
+		t.Errorf("glyph[4] numberOfContours: got %d, want 2", g4.header.numberOfContours)
 	}
-	if len(g1.simpleGlyph.xCoordinates) != 78 {
-		t.Errorf("glyph[1] point count: got %d, want 78", len(g1.simpleGlyph.xCoordinates))
+	if len(g4.simpleGlyph.xCoordinates) != 16 {
+		t.Errorf("glyph[4] point count: got %d, want 16", len(g4.simpleGlyph.xCoordinates))
 	}
 }
 

@@ -10,20 +10,18 @@ func TestRuneToGlyphID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Known mapping from test font
-	if gid := ttf.RuneToGlyphID(0xE001); gid != 1 {
-		t.Errorf("RuneToGlyphID(0xE001): got %d, want 1", gid)
+	// Known mappings from test font:
+	// space (U+0020) → glyph 3, 'A' (U+0041) → glyph 39
+	if gid := ttf.RuneToGlyphID('A'); gid != 39 {
+		t.Errorf("RuneToGlyphID('A'): got %d, want 39", gid)
 	}
-	if gid := ttf.RuneToGlyphID(0xE002); gid != 2 {
-		t.Errorf("RuneToGlyphID(0xE002): got %d, want 2", gid)
-	}
-	if gid := ttf.RuneToGlyphID(0xE030); gid != 42 {
-		t.Errorf("RuneToGlyphID(0xE030): got %d, want 42", gid)
+	if gid := ttf.RuneToGlyphID(' '); gid != 3 {
+		t.Errorf("RuneToGlyphID(' '): got %d, want 3", gid)
 	}
 
 	// Unmapped rune should return 0
-	if gid := ttf.RuneToGlyphID(0x41); gid != 0 {
-		t.Errorf("RuneToGlyphID('A'): got %d, want 0", gid)
+	if gid := ttf.RuneToGlyphID(0xE001); gid != 0 {
+		t.Errorf("RuneToGlyphID(0xE001): got %d, want 0", gid)
 	}
 }
 
@@ -33,17 +31,17 @@ func TestGlyphForRune(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := ttf.GlyphForRune(0xE001)
+	g := ttf.GlyphForRune('A')
 	if g == nil {
-		t.Fatal("GlyphForRune(0xE001) returned nil")
+		t.Fatal("GlyphForRune('A') returned nil")
 	}
 	if g.simpleGlyph == nil {
-		t.Error("glyph 1 is not a simple glyph")
+		t.Error("glyph 39 is not a simple glyph")
 	}
 
 	// Unmapped rune should return nil
-	if g := ttf.GlyphForRune(0x41); g != nil {
-		t.Error("GlyphForRune('A') should be nil")
+	if g := ttf.GlyphForRune(0xE001); g != nil {
+		t.Error("GlyphForRune(0xE001) should be nil")
 	}
 }
 
@@ -63,16 +61,16 @@ func TestSetRuneMapping(t *testing.T) {
 	}
 
 	// Override an existing mapping
-	err = ttf.SetRuneMapping(0xE001, 5)
+	err = ttf.SetRuneMapping(' ', 5)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gid := ttf.RuneToGlyphID(0xE001); gid != 5 {
-		t.Errorf("after SetRuneMapping(0xE001, 5): got %d, want 5", gid)
+	if gid := ttf.RuneToGlyphID(' '); gid != 5 {
+		t.Errorf("after SetRuneMapping(' ', 5): got %d, want 5", gid)
 	}
 
 	// Out of range glyph ID
-	err = ttf.SetRuneMapping(0x42, 100)
+	err = ttf.SetRuneMapping(0x42, 50000)
 	if err == nil {
 		t.Error("expected error for out-of-range glyph ID")
 	}
@@ -85,13 +83,13 @@ func TestRemoveRuneMapping(t *testing.T) {
 	}
 
 	// Verify mapping exists
-	if gid := ttf.RuneToGlyphID(0xE001); gid != 1 {
-		t.Fatalf("before remove: got %d, want 1", gid)
+	if gid := ttf.RuneToGlyphID('A'); gid != 39 {
+		t.Fatalf("before remove: got %d, want 39", gid)
 	}
 
-	ttf.RemoveRuneMapping(0xE001)
-	if gid := ttf.RuneToGlyphID(0xE001); gid != 0 {
-		t.Errorf("after RemoveRuneMapping(0xE001): got %d, want 0", gid)
+	ttf.RemoveRuneMapping('A')
+	if gid := ttf.RuneToGlyphID('A'); gid != 0 {
+		t.Errorf("after RemoveRuneMapping('A'): got %d, want 0", gid)
 	}
 
 	// Removing non-existent mapping should be a no-op
@@ -103,8 +101,8 @@ func TestNumGlyphs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := ttf.NumGlyphs(); n != 43 {
-		t.Errorf("NumGlyphs: got %d, want 43", n)
+	if n := ttf.NumGlyphs(); n != 29354 {
+		t.Errorf("NumGlyphs: got %d, want 29354", n)
 	}
 }
 
@@ -126,8 +124,8 @@ func TestGlyphAt(t *testing.T) {
 	if g := ttf.GlyphAt(-1); g != nil {
 		t.Error("GlyphAt(-1) should be nil")
 	}
-	if g := ttf.GlyphAt(100); g != nil {
-		t.Error("GlyphAt(100) should be nil")
+	if g := ttf.GlyphAt(50000); g != nil {
+		t.Error("GlyphAt(50000) should be nil")
 	}
 }
 
@@ -158,7 +156,7 @@ func TestSetGlyphAt(t *testing.T) {
 	}
 
 	// Out of range
-	err = ttf.SetGlyphAt(100, newGlyph)
+	err = ttf.SetGlyphAt(50000, newGlyph)
 	if err == nil {
 		t.Error("expected error for out-of-range index")
 	}
@@ -269,9 +267,9 @@ func TestRemoveGlyphsSerialize(t *testing.T) {
 	// Verify cmap mapping still works (for remaining glyphs)
 	for _, sub := range ttf2.cmap.subtables {
 		if sub.Format() == 4 {
-			// 0xE001 should still map to glyph 1 (not removed)
-			if gid := sub.Map(0xE001); gid != 1 {
-				t.Errorf("Map(0xE001) after round-trip: got %d, want 1", gid)
+			// Removed glyphs 3, 7, 10. 'A' (glyph 39) should still be mapped (not removed)
+			if gid := sub.Map('A'); gid == 0 {
+				t.Errorf("Map('A') after round-trip should still be mapped")
 			}
 		}
 	}
@@ -306,8 +304,8 @@ func TestSetRuneMappingSerialize(t *testing.T) {
 	}
 
 	// Original mapping should still work
-	if gid := ttf2.RuneToGlyphID(0xE001); gid != 1 {
-		t.Errorf("RuneToGlyphID(0xE001) after round-trip: got %d, want 1", gid)
+	if gid := ttf2.RuneToGlyphID(' '); gid != 3 {
+		t.Errorf("RuneToGlyphID(' ') after round-trip: got %d, want 3", gid)
 	}
 }
 
@@ -363,12 +361,12 @@ func TestRemoveRuneMappingSerialize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Remove mapping for 0xE001
-	ttf.RemoveRuneMapping(0xE001)
+	// Remove mapping for 'A'
+	ttf.RemoveRuneMapping('A')
 
 	// Verify it's gone from the abstract map
-	if gid := ttf.RuneToGlyphID(0xE001); gid != 0 {
-		t.Errorf("RuneToGlyphID(0xE001) after remove: got %d, want 0", gid)
+	if gid := ttf.RuneToGlyphID('A'); gid != 0 {
+		t.Errorf("RuneToGlyphID('A') after remove: got %d, want 0", gid)
 	}
 
 	// Serialize and re-parse
@@ -383,12 +381,12 @@ func TestRemoveRuneMappingSerialize(t *testing.T) {
 	}
 
 	// Mapping should be gone in the serialized font
-	if gid := ttf2.RuneToGlyphID(0xE001); gid != 0 {
-		t.Errorf("RuneToGlyphID(0xE001) after round-trip: got %d, want 0", gid)
+	if gid := ttf2.RuneToGlyphID('A'); gid != 0 {
+		t.Errorf("RuneToGlyphID('A') after round-trip: got %d, want 0", gid)
 	}
 
 	// Other mappings should still work
-	if gid := ttf2.RuneToGlyphID(0xE002); gid != 2 {
-		t.Errorf("RuneToGlyphID(0xE002) after round-trip: got %d, want 2", gid)
+	if gid := ttf2.RuneToGlyphID(' '); gid != 3 {
+		t.Errorf("RuneToGlyphID(' ') after round-trip: got %d, want 3", gid)
 	}
 }

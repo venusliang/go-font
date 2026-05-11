@@ -22,26 +22,26 @@ func TestParseHhea(t *testing.T) {
 	if hhea.version != 0x00010000 {
 		t.Errorf("version: got 0x%08X, want 0x00010000", hhea.version)
 	}
-	if hhea.ascent != 812 {
-		t.Errorf("ascent: got %d, want 812", hhea.ascent)
+	if hhea.ascent != 2167 {
+		t.Errorf("ascent: got %d, want 2167", hhea.ascent)
 	}
-	if hhea.descent != -212 {
-		t.Errorf("descent: got %d, want -212", hhea.descent)
+	if hhea.descent != -536 {
+		t.Errorf("descent: got %d, want -536", hhea.descent)
 	}
-	if hhea.lineGap != 92 {
-		t.Errorf("lineGap: got %d, want 92", hhea.lineGap)
+	if hhea.lineGap != 0 {
+		t.Errorf("lineGap: got %d, want 0", hhea.lineGap)
 	}
-	if hhea.advanceWidthMax != 1354 {
-		t.Errorf("advanceWidthMax: got %d, want 1354", hhea.advanceWidthMax)
+	if hhea.advanceWidthMax != 2688 {
+		t.Errorf("advanceWidthMax: got %d, want 2688", hhea.advanceWidthMax)
 	}
-	if hhea.minLeftSideBearing != 6 {
-		t.Errorf("minLeftSideBearing: got %d, want 6", hhea.minLeftSideBearing)
+	if hhea.minLeftSideBearing != -324 {
+		t.Errorf("minLeftSideBearing: got %d, want -324", hhea.minLeftSideBearing)
 	}
-	if hhea.minRightSideBearing != 29 {
-		t.Errorf("minRightSideBearing: got %d, want 29", hhea.minRightSideBearing)
+	if hhea.minRightSideBearing != -1921 {
+		t.Errorf("minRightSideBearing: got %d, want -1921", hhea.minRightSideBearing)
 	}
-	if hhea.xMaxExtent != 1321 {
-		t.Errorf("xMaxExtent: got %d, want 1321", hhea.xMaxExtent)
+	if hhea.xMaxExtent != 2600 {
+		t.Errorf("xMaxExtent: got %d, want 2600", hhea.xMaxExtent)
 	}
 	if hhea.caretSlopeRise != 1 {
 		t.Errorf("caretSlopeRise: got %d, want 1", hhea.caretSlopeRise)
@@ -49,8 +49,8 @@ func TestParseHhea(t *testing.T) {
 	if hhea.caretSlopeRun != 0 {
 		t.Errorf("caretSlopeRun: got %d, want 0", hhea.caretSlopeRun)
 	}
-	if hhea.numberOfHMetrics != 43 {
-		t.Errorf("numberOfHMetrics: got %d, want 43", hhea.numberOfHMetrics)
+	if hhea.numberOfHMetrics != 29354 {
+		t.Errorf("numberOfHMetrics: got %d, want 29354", hhea.numberOfHMetrics)
 	}
 	if hhea.metricDataFormat != 0 {
 		t.Errorf("metricDataFormat: got %d, want 0", hhea.metricDataFormat)

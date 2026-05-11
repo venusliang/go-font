@@ -24,38 +24,38 @@ func TestParseHead(t *testing.T) {
 	if head.magicNumber != 0x5F0F3CF5 {
 		t.Errorf("magicNumber: got 0x%08X, want 0x5F0F3CF5", head.magicNumber)
 	}
-	if head.unitsPerEm != 1024 {
-		t.Errorf("unitsPerEm: got %d, want 1024", head.unitsPerEm)
+	if head.unitsPerEm != 2048 {
+		t.Errorf("unitsPerEm: got %d, want 2048", head.unitsPerEm)
 	}
-	if head.flags != 0x000B {
-		t.Errorf("flags: got 0x%04X, want 0x000B", head.flags)
+	if head.flags != 0x201B {
+		t.Errorf("flags: got 0x%04X, want 0x201B", head.flags)
 	}
-	if head.indexToLocFormat != 0 {
-		t.Errorf("indexToLocFormat: got %d, want 0 (short)", head.indexToLocFormat)
+	if head.indexToLocFormat != 1 {
+		t.Errorf("indexToLocFormat: got %d, want 1 (long)", head.indexToLocFormat)
 	}
 	if head.glyphDataFormat != 0 {
 		t.Errorf("glyphDataFormat: got %d, want 0", head.glyphDataFormat)
 	}
-	if head.xMin != 6 {
-		t.Errorf("xMin: got %d, want 6", head.xMin)
+	if head.xMin != -324 {
+		t.Errorf("xMin: got %d, want -324", head.xMin)
 	}
-	if head.yMin != -206 {
-		t.Errorf("yMin: got %d, want -206", head.yMin)
+	if head.yMin != -523 {
+		t.Errorf("yMin: got %d, want -523", head.yMin)
 	}
-	if head.xMax != 1321 {
-		t.Errorf("xMax: got %d, want 1321", head.xMax)
+	if head.xMax != 2600 {
+		t.Errorf("xMax: got %d, want 2600", head.xMax)
 	}
-	if head.yMax != 808 {
-		t.Errorf("yMax: got %d, want 808", head.yMax)
+	if head.yMax != 2122 {
+		t.Errorf("yMax: got %d, want 2122", head.yMax)
 	}
 	if head.macStyle != 0 {
 		t.Errorf("macStyle: got 0x%04X, want 0", head.macStyle)
 	}
-	if head.lowestRecPPEM != 8 {
-		t.Errorf("lowestRecPPEM: got %d, want 8", head.lowestRecPPEM)
+	if head.lowestRecPPEM != 9 {
+		t.Errorf("lowestRecPPEM: got %d, want 9", head.lowestRecPPEM)
 	}
-	if head.fontDirectionHint != 2 {
-		t.Errorf("fontDirectionHint: got %d, want 2", head.fontDirectionHint)
+	if head.fontDirectionHint != 1 {
+		t.Errorf("fontDirectionHint: got %d, want 1", head.fontDirectionHint)
 	}
 }
 

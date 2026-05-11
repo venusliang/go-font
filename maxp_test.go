@@ -19,14 +19,14 @@ func TestParseMaxp(t *testing.T) {
 	// After bug fix, version should be 0x00010000.
 	// The current code reads 0x0001, which shifts all subsequent fields by 2 bytes.
 	// These assertions reflect the CORRECT values after the bug is fixed.
-	if maxp.numGlyphs != 43 {
-		t.Errorf("numGlyphs: got %d, want 43", maxp.numGlyphs)
+	if maxp.numGlyphs != 29354 {
+		t.Errorf("numGlyphs: got %d, want 29354", maxp.numGlyphs)
 	}
-	if maxp.maxPoints != 186 {
-		t.Errorf("maxPoints: got %d, want 186", maxp.maxPoints)
+	if maxp.maxPoints != 287 {
+		t.Errorf("maxPoints: got %d, want 287", maxp.maxPoints)
 	}
-	if maxp.maxContours != 13 {
-		t.Errorf("maxContours: got %d, want 13", maxp.maxContours)
+	if maxp.maxContours != 41 {
+		t.Errorf("maxContours: got %d, want 41", maxp.maxContours)
 	}
 	if maxp.maxZones != 2 {
 		t.Errorf("maxZones: got %d, want 2", maxp.maxZones)

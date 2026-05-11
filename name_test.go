@@ -18,26 +18,26 @@ func TestParseName(t *testing.T) {
 	if name.format != 0 {
 		t.Errorf("format: got %d, want 0", name.format)
 	}
-	if name.count != 12 {
-		t.Errorf("count: got %d, want 12", name.count)
+	if name.count != 56 {
+		t.Errorf("count: got %d, want 56", name.count)
 	}
-	if name.stringOffset != 150 {
-		t.Errorf("stringOffset: got %d, want 150", name.stringOffset)
+	if name.stringOffset != 678 {
+		t.Errorf("stringOffset: got %d, want 678", name.stringOffset)
 	}
-	if len(name.nameRecords) != 12 {
-		t.Errorf("nameRecords count: got %d, want 12", len(name.nameRecords))
+	if len(name.nameRecords) != 56 {
+		t.Errorf("nameRecords count: got %d, want 56", len(name.nameRecords))
 	}
 
-	// First record: platformID=1, encodingID=0, languageID=0, nameID=1, length=10
+	// First record: platformID=1, encodingID=0, languageID=0, nameID=0, length=50
 	r0 := name.nameRecords[0]
 	if r0.platformID != 1 {
 		t.Errorf("record[0] platformID: got %d, want 1", r0.platformID)
 	}
-	if r0.nameID != 1 {
-		t.Errorf("record[0] nameID: got %d, want 1", r0.nameID)
+	if r0.nameID != 0 {
+		t.Errorf("record[0] nameID: got %d, want 0", r0.nameID)
 	}
-	if r0.length != 10 {
-		t.Errorf("record[0] length: got %d, want 10", r0.length)
+	if r0.length != 50 {
+		t.Errorf("record[0] length: got %d, want 50", r0.length)
 	}
 
 	// Verify string storage contains data

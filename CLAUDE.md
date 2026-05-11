@@ -69,7 +69,7 @@ For CFF/OpenType fonts (version "OTTO"), the CFF table is parsed from `rawTables
 
 ### Test Pattern
 
-Each table has a `_test.go` file with `TestParseXxx` (value assertions) and `TestRoundTripXxx` (write then re-parse and compare). Test data is loaded from `fonts/fonteditor.ttf` via `loadFont(t)` in `testing_test.go` (reads from disk, cached across tests).
+Each table has a `_test.go` file with `TestParseXxx` (value assertions) and `TestRoundTripXxx` (write then re-parse and compare). Test data is loaded from `testdata/Microsoft-Yahei.ttf` via `loadFont(t)` in `testing_test.go` (reads from disk, cached across tests).
 
 ### Glyph Editing API
 

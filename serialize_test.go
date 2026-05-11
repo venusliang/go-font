@@ -132,11 +132,11 @@ func TestSerializeMap(t *testing.T) {
 	for _, sub := range ttf2.cmap.subtables {
 		if sub.Format() == 4 {
 			f4 := sub.(*CMapFormat4)
-			if gid := f4.Map(0xE001); gid != 1 {
-				t.Errorf("Map(0xE001): got %d, want 1", gid)
+			if gid := f4.Map(0x0020); gid != 3 {
+				t.Errorf("Map(0x0020): got %d, want 3", gid)
 			}
-			if gid := f4.Map(0xE030); gid != 42 {
-				t.Errorf("Map(0xE030): got %d, want 42", gid)
+			if gid := f4.Map('A'); gid != 39 {
+				t.Errorf("Map('A'): got %d, want 39", gid)
 			}
 		}
 	}

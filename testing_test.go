@@ -20,8 +20,8 @@ func loadFont(t *testing.T) []byte {
 	t.Helper()
 	fontDataOnce.Do(func() {
 		paths := []string{
-			"fonts/fonteditor.ttf",
-			filepath.Join("..", "fonts", "fonteditor.ttf"),
+			"testdata/Microsoft-Yahei.ttf",
+			filepath.Join("..", "testdata", "Microsoft-Yahei.ttf"),
 		}
 		var err error
 		for _, p := range paths {
@@ -31,7 +31,7 @@ func loadFont(t *testing.T) []byte {
 			}
 		}
 		if fontData == nil {
-			panic("fonts/fonteditor.ttf not found: " + err.Error())
+			panic("testdata/Microsoft-Yahei.ttf not found: " + err.Error())
 		}
 	})
 	return fontData
@@ -42,8 +42,8 @@ func loadKernFont(t *testing.T) []byte {
 	t.Helper()
 	kernFontDataOnce.Do(func() {
 		paths := []string{
-			"fonts/LEELAWDB.TTF",
-			filepath.Join("..", "fonts", "LEELAWDB.TTF"),
+			"testdata/LEELAWDB.TTF",
+			filepath.Join("..", "testdata", "LEELAWDB.TTF"),
 		}
 		var err error
 		for _, p := range paths {
@@ -53,7 +53,7 @@ func loadKernFont(t *testing.T) []byte {
 			}
 		}
 		if kernFontData == nil {
-			panic("fonts/LEELAWDB.TTF not found: " + err.Error())
+			panic("testdata/LEELAWDB.TTF not found: " + err.Error())
 		}
 	})
 	return kernFontData

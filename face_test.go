@@ -49,11 +49,11 @@ func TestFaceMetrics(t *testing.T) {
 
 	m := face.Metrics()
 
-	// unitsPerEm=1024, ascent=812, descent=-212, lineGap=92
+	// unitsPerEm=2048, ascent=2167, descent=-536, lineGap=0
 	// scale = 12 * 72 * 64 / 72 = 768 (26.6 fixed-point)
-	// Height = (812 - (-212) + 92) * 768 / 1024 = 1116 * 768 / 1024 = 837
-	// Ascent = 812 * 768 / 1024 = 609
-	// Descent = 212 * 768 / 1024 = 159
+	// Height = (2167 - (-536) + 0) * 768 / 2048 = 2703 * 768 / 2048 = 1013
+	// Ascent = 2167 * 768 / 2048 = 812
+	// Descent = 536 * 768 / 2048 = 201
 	if m.Height == 0 {
 		t.Error("Metrics.Height is zero")
 	}
@@ -71,11 +71,11 @@ func TestFaceMetrics(t *testing.T) {
 	}
 
 	// Verify expected values
-	expectedAscent := fixed.Int26_6(812) * 768 / 1024
+	expectedAscent := fixed.Int26_6(2167) * 768 / 2048
 	if m.Ascent != expectedAscent {
 		t.Errorf("Ascent: got %d, want %d", m.Ascent, expectedAscent)
 	}
-	expectedDescent := fixed.Int26_6(212) * 768 / 1024
+	expectedDescent := fixed.Int26_6(536) * 768 / 2048
 	if m.Descent != expectedDescent {
 		t.Errorf("Descent: got %d, want %d", m.Descent, expectedDescent)
 	}

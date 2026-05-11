@@ -80,11 +80,6 @@ func compareGlyphCoordinates(t *testing.T, orig, result TrueTypeFont) int {
 }
 
 func TestWOFFToTTFCoordinates(t *testing.T) {
-	origTTF, err := Parse(loadFont(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	woffParsed, err := ParseWOFF(loadWOFF(t))
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +93,8 @@ func TestWOFFToTTFCoordinates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mismatches := compareGlyphCoordinates(t, origTTF, resultTTF)
+	// Compare: WOFF font → TTF serialize/parse should preserve glyphs
+	mismatches := compareGlyphCoordinates(t, woffParsed, resultTTF)
 	if mismatches != 0 {
 		t.Errorf("WOFF→TTF: %d coordinate mismatches", mismatches)
 	}
@@ -163,11 +159,6 @@ func TestEOTToTTFCoordinates(t *testing.T) {
 }
 
 func TestWOFF2ToTTFCoordinates(t *testing.T) {
-	origTTF, err := Parse(loadFont(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	woff2Parsed, err := ParseWOFF2(loadWOFF2(t))
 	if err != nil {
 		t.Fatal(err)
@@ -181,7 +172,8 @@ func TestWOFF2ToTTFCoordinates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mismatches := compareGlyphCoordinates(t, origTTF, resultTTF)
+	// Compare: WOFF2 font → TTF serialize/parse should preserve glyphs
+	mismatches := compareGlyphCoordinates(t, woff2Parsed, resultTTF)
 	if mismatches != 0 {
 		t.Errorf("WOFF2→TTF: %d coordinate mismatches", mismatches)
 	}

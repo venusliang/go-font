@@ -17,8 +17,8 @@ func loadOTTOFont(t *testing.T) []byte {
 	t.Helper()
 	ottoFontDataOnce.Do(func() {
 		paths := []string{
-			"fonts/otto-test.otf",
-			filepath.Join("..", "fonts", "otto-test.otf"),
+			"testdata/otto-test.otf",
+			filepath.Join("..", "testdata", "otto-test.otf"),
 		}
 		var err error
 		for _, p := range paths {
@@ -251,10 +251,10 @@ func generateMinimalOTTO(t *testing.T) []byte {
 	b.PutU16(0)
 	b.PutU16(1)
 	b.PutU16(0)
-	b.PutU32(0)            // checksumAdjustment
-	b.PutU32(0x5F0F3CF5)   // magicNumber
-	b.PutU16(0x000B)       // flags
-	b.PutU16(1000)         // unitsPerEm
+	b.PutU32(0)          // checksumAdjustment
+	b.PutU32(0x5F0F3CF5) // magicNumber
+	b.PutU16(0x000B)     // flags
+	b.PutU16(1000)       // unitsPerEm
 	b.PutU64(0)
 	b.PutU64(0)
 	b.PutU16(0)
@@ -280,16 +280,16 @@ func generateMinimalOTTO(t *testing.T) []byte {
 	// Rewrite manually for clarity
 	hheaData2 := make([]byte, 36)
 	b = BinaryFrom(hheaData2, false)
-	b.PutU32(0x00010000)   // version
-	b.PutU16(800)          // ascent
+	b.PutU32(0x00010000)     // version
+	b.PutU16(800)            // ascent
 	b.PutU16(uint16(neg200)) // descent
-	b.PutU16(0)            // lineGap
-	b.PutU16(600)          // advanceWidthMax
-	b.PutU16(0)            // minLeftSideBearing
-	b.PutU16(0)            // minRightSideBearing
-	b.PutU16(800)          // xMaxExtent
-	b.PutU16(1)            // caretSlopeRise
-	b.PutU16(0)            // caretSlopeRun
+	b.PutU16(0)              // lineGap
+	b.PutU16(600)            // advanceWidthMax
+	b.PutU16(0)              // minLeftSideBearing
+	b.PutU16(0)              // minRightSideBearing
+	b.PutU16(800)            // xMaxExtent
+	b.PutU16(1)              // caretSlopeRise
+	b.PutU16(0)              // caretSlopeRun
 	for i := 0; i < 5; i++ { // caretOffset + 4 reserved
 		b.PutU16(0)
 	}

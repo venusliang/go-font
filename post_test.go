@@ -25,24 +25,24 @@ func TestParsePost(t *testing.T) {
 	if post.italicAngle != 0 {
 		t.Errorf("italicAngle: got %d, want 0", post.italicAngle)
 	}
-	if post.underlinePosition != 50 {
-		t.Errorf("underlinePosition: got %d, want 50", post.underlinePosition)
+	if post.underlinePosition != -178 {
+		t.Errorf("underlinePosition: got %d, want -178", post.underlinePosition)
 	}
-	if post.underlineThickness != 0 {
-		t.Errorf("underlineThickness: got %d, want 0", post.underlineThickness)
+	if post.underlineThickness != 119 {
+		t.Errorf("underlineThickness: got %d, want 119", post.underlineThickness)
 	}
-	if post.numGlyphs != 43 {
-		t.Errorf("numGlyphs: got %d, want 43", post.numGlyphs)
+	if post.numGlyphs != 29354 {
+		t.Errorf("numGlyphs: got %d, want 29354", post.numGlyphs)
 	}
-	if len(post.glyphNameIndex) != 43 {
-		t.Fatalf("glyphNameIndex count: got %d, want 43", len(post.glyphNameIndex))
+	if len(post.glyphNameIndex) != 29354 {
+		t.Fatalf("glyphNameIndex count: got %d, want 29354", len(post.glyphNameIndex))
 	}
 
 	// glyph[0] = .notdef (index 0)
 	if post.glyphNameIndex[0] != 0 {
 		t.Errorf("glyphNameIndex[0]: got %d, want 0", post.glyphNameIndex[0])
 	}
-	// glyph[1] = uniE001 (index 258, first custom name)
+	// glyph[1] - first name after standard strings
 	if post.glyphNameIndex[1] != 258 {
 		t.Errorf("glyphNameIndex[1]: got %d, want 258", post.glyphNameIndex[1])
 	}
