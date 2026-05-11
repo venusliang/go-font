@@ -56,6 +56,7 @@ Each TrueType table has its own file with a `parseXxx(data []byte)` function and
 | `gsub.go` | `GSUB` | Glyph substitution, single substitution |
 | `cff.go` | `CFF ` | CFF (Compact Font Format) structure: Header, INDEX, Top/Private DICT, Charset, CharStrings |
 | `cff_charstring.go` | — | Type 2 CharString bytecode interpreter, outline extraction (moveto/lineto/curveto) |
+| `face.go` | — | `font.Face` implementation for text rendering via `golang.org/x/image/font` |
 
 ### Parse Order
 
@@ -82,6 +83,7 @@ Each table has a `_test.go` file with `TestParseXxx` (value assertions) and `Tes
 - **Font names**: `FontFamily`, `FontFullName`, `SetFontFamily`, `SetFontFullName`
 - **Subset**: `Subset(keepRunes)` keeps only glyphs needed for specified characters
 - **CFF**: `IsCFF`, `CFFFontName`, `CFFGlyphName`, `CFFOutlineAt`, `CFFOutlineForRune`
+- **Rendering**: `NewFace` on `TrueTypeFont` returns a `*Face` implementing `golang.org/x/image/font.Face` for text rendering with `font.Drawer`
 
 The abstract cmap layer uses `map[rune]uint16` (lazily initialized from parsed cmap via `Enumerate`). When `Serialize()` is called and the map is non-nil, `rebuildCmap()` regenerates the binary cmap from the abstract map.
 
@@ -109,6 +111,17 @@ TTC (TrueType Collection) is a container format that bundles multiple fonts in o
 - `rawTables` in `TrueTypeFont` stores raw bytes for tables not natively parsed (e.g. `CFF `). These are written back as-is during serialization for lossless round-trip.
 - `NumGlyphs()` uses `len(glyf)` for TrueType fonts and `maxp.numGlyphs` for CFF fonts.
 - CFF charstring outlines are decoded lazily via `DecodeOutlines()` using a Type 2 VM with a 48-entry operand stack, subroutine support (local + global), and 10-level call depth limit.
+
+### Font Rendering (face.go)
+
+`Face` implements `golang.org/x/image/font.Face` for rendering parsed fonts as images. `NewFace(f *TrueTypeFont, opts *FaceOptions)` (package-level function or method on `TrueTypeFont`) creates a `Face` at a specific size/DPI. The Face uses `golang.org/x/image/vector.Rasterizer` for anti-aliased rasterization.
+
+- **Scale**: `scale = fixed.Int26_6(0.5 + size * dpi * 64 / 72)` converts design units to 26.6 fixed-point pixels.
+- **Y-flip**: OpenType Y increases upward; image Y increases downward. Coordinates are negated during outline extraction.
+- **TrueType outlines**: Quadratic Bézier curves. Consecutive off-curve points produce an implicit on-curve midpoint. Composite glyphs recurse (max depth 8) with translation + optional 2x2 transform.
+- **CFF outlines**: Cubic Bézier curves. `DecodeOutlines()` is called once in `NewFace` and cached in `Face.cffOutlines`.
+- **Kerning**: Binary search in kern table format-0 subtables.
+- **Reusable buffers**: `Face` reuses `[]faceSegment` slice, `vector.Rasterizer`, and `image.Alpha` mask across Glyph calls. Not safe for concurrent use.
 
 ## Git Rules
 
