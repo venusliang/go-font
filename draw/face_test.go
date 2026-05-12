@@ -1,29 +1,66 @@
-package gofont
+package draw_test
 
 import (
+	"fmt"
 	"image"
 	"image/color"
-	"image/draw"
+	imdraw "image/draw"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 
-	"fmt"
+	gofont "github.com/venusliang/go-font"
+	fontdraw "github.com/venusliang/go-font/draw"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )
 
-func parseTestFont(t *testing.T) *TrueTypeFont {
+var (
+	testFontData     []byte
+	testFontDataOnce sync.Once
+
+	kernFontData     []byte
+	kernFontDataOnce sync.Once
+)
+
+func loadTestFont(t *testing.T) []byte {
 	t.Helper()
-	ttf, err := Parse(loadFont(t))
+	testFontDataOnce.Do(func() {
+		data, err := os.ReadFile(filepath.Join("..", "testdata", "Microsoft-Yahei.ttf"))
+		if err != nil {
+			t.Fatalf("failed to load test font: %v", err)
+		}
+		testFontData = data
+	})
+	return testFontData
+}
+
+func loadKernFont(t *testing.T) []byte {
+	t.Helper()
+	kernFontDataOnce.Do(func() {
+		data, err := os.ReadFile(filepath.Join("..", "testdata", "LEELAWDB.TTF"))
+		if err != nil {
+			t.Fatalf("failed to load kern font: %v", err)
+		}
+		kernFontData = data
+	})
+	return kernFontData
+}
+
+func parseTestFont(t *testing.T) *gofont.TrueTypeFont {
+	t.Helper()
+	ttf, err := gofont.Parse(loadTestFont(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	return &ttf
 }
 
-func parseKernTestFont(t *testing.T) *TrueTypeFont {
+func parseKernTestFont(t *testing.T) *gofont.TrueTypeFont {
 	t.Helper()
-	ttf, err := Parse(loadKernFont(t))
+	ttf, err := gofont.Parse(loadKernFont(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,28 +69,20 @@ func parseKernTestFont(t *testing.T) *TrueTypeFont {
 
 func TestNewFaceDefaults(t *testing.T) {
 	ttf := parseTestFont(t)
-	face := NewFace(ttf, nil)
+	face := fontdraw.NewFace(ttf, nil)
 	if face == nil {
 		t.Fatal("NewFace returned nil")
-	}
-	if face.scale == 0 {
-		t.Error("scale is zero")
 	}
 	face.Close()
 }
 
 func TestFaceMetrics(t *testing.T) {
 	ttf := parseTestFont(t)
-	face := NewFace(ttf, &FaceOptions{Size: 12, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 12, DPI: 72})
 	defer face.Close()
 
 	m := face.Metrics()
 
-	// unitsPerEm=2048, ascent=2167, descent=-536, lineGap=0
-	// scale = 12 * 72 * 64 / 72 = 768 (26.6 fixed-point)
-	// Height = (2167 - (-536) + 0) * 768 / 2048 = 2703 * 768 / 2048 = 1013
-	// Ascent = 2167 * 768 / 2048 = 812
-	// Descent = 536 * 768 / 2048 = 201
 	if m.Height == 0 {
 		t.Error("Metrics.Height is zero")
 	}
@@ -70,7 +99,6 @@ func TestFaceMetrics(t *testing.T) {
 		t.Errorf("Metrics.Descent should be non-negative, got %d", m.Descent)
 	}
 
-	// Verify expected values
 	expectedAscent := fixed.Int26_6(2167) * 768 / 2048
 	if m.Ascent != expectedAscent {
 		t.Errorf("Ascent: got %d, want %d", m.Ascent, expectedAscent)
@@ -83,10 +111,9 @@ func TestFaceMetrics(t *testing.T) {
 
 func TestGlyphAdvance(t *testing.T) {
 	ttf := parseTestFont(t)
-	face := NewFace(ttf, &FaceOptions{Size: 12, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 12, DPI: 72})
 	defer face.Close()
 
-	// Test unmapped rune
 	advance, ok := face.GlyphAdvance(0x0000)
 	if ok {
 		t.Error("expected ok=false for unmapped rune")
@@ -95,7 +122,6 @@ func TestGlyphAdvance(t *testing.T) {
 		t.Errorf("expected advance=0 for unmapped rune, got %d", advance)
 	}
 
-	// Test that we can get advance for at least one mapped rune
 	runes := ttf.MappedRunes()
 	if len(runes) == 0 {
 		t.Fatal("test font has no mapped runes")
@@ -119,16 +145,14 @@ func TestGlyphAdvance(t *testing.T) {
 
 func TestGlyphBounds(t *testing.T) {
 	ttf := parseTestFont(t)
-	face := NewFace(ttf, &FaceOptions{Size: 12, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 12, DPI: 72})
 	defer face.Close()
 
-	// Test unmapped rune
 	_, _, ok := face.GlyphBounds(0x0000)
 	if ok {
 		t.Error("expected ok=false for unmapped rune")
 	}
 
-	// Test a mapped rune
 	runes := ttf.MappedRunes()
 	if len(runes) == 0 {
 		t.Fatal("test font has no mapped runes")
@@ -141,28 +165,17 @@ func TestGlyphBounds(t *testing.T) {
 	if advance == 0 {
 		t.Errorf("GlyphBounds(%q) returned zero advance", runes[0])
 	}
-
-	// For a glyph with actual outlines, bounds should be non-empty
-	// Y-flip: Min.Y should be negative (above baseline) and Max.Y should be positive (below baseline)
-	// Actually, after Y-flip: bounds.Min.Y = -scale(yMax), bounds.Max.Y = -scale(yMin)
-	// Since yMin < 0 for most glyphs (below baseline) and yMax > 0 (above baseline):
-	// Min.Y = -scale(yMax) < 0 (above baseline in image space)
-	// Max.Y = -scale(yMin) > 0 (below baseline in image space)
 	_ = bounds
 }
 
 func TestKern(t *testing.T) {
-	// Test with kern font
 	ttf := parseKernTestFont(t)
-	face := NewFace(ttf, &FaceOptions{Size: 12, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 12, DPI: 72})
 	defer face.Close()
 
-	// Kerning for two runes that have a kern pair
-	// Just verify it doesn't crash and returns reasonable values
 	k := face.Kern('A', 'V')
-	_ = k // kern value may or may not be 0 depending on the font
+	_ = k
 
-	// Unmapped runes should return 0
 	k = face.Kern(0x0000, 0x0001)
 	if k != 0 {
 		t.Errorf("Kern for unmapped runes should be 0, got %d", k)
@@ -171,7 +184,7 @@ func TestKern(t *testing.T) {
 
 func TestGlyphRendering(t *testing.T) {
 	ttf := parseTestFont(t)
-	face := NewFace(ttf, &FaceOptions{Size: 24, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 24, DPI: 72})
 	defer face.Close()
 
 	runes := ttf.MappedRunes()
@@ -179,7 +192,6 @@ func TestGlyphRendering(t *testing.T) {
 		t.Fatal("test font has no mapped runes")
 	}
 
-	// Try rendering a few glyphs
 	rendered := 0
 	for _, r := range runes {
 		if rendered >= 5 {
@@ -197,7 +209,6 @@ func TestGlyphRendering(t *testing.T) {
 		_ = advance
 
 		if mask == nil {
-			// Some glyphs (like space) may have no outline
 			if dr.Empty() {
 				continue
 			}
@@ -212,12 +223,11 @@ func TestGlyphRendering(t *testing.T) {
 
 func TestFaceDrawString(t *testing.T) {
 	ttf := parseTestFont(t)
-	face := NewFace(ttf, &FaceOptions{Size: 16, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 16, DPI: 72})
 	defer face.Close()
 
-	// Draw a string using font.DrawString
 	img := image.NewRGBA(image.Rect(0, 0, 200, 50))
-	draw.Draw(img, img.Bounds(), image.White, image.Point{}, draw.Src)
+	imdraw.Draw(img, img.Bounds(), image.White, image.Point{}, imdraw.Src)
 
 	d := font.Drawer{
 		Dst:  img,
@@ -231,14 +241,12 @@ func TestFaceDrawString(t *testing.T) {
 		t.Fatal("test font has no mapped runes")
 	}
 
-	// Draw first 5 mapped characters
 	s := ""
 	for i := 0; i < 5 && i < len(runes); i++ {
 		s += string(runes[i])
 	}
 	d.DrawString(s)
 
-	// Verify something was drawn (at least one non-white pixel)
 	hasContent := false
 	for y := 0; y < img.Bounds().Dy() && !hasContent; y++ {
 		for x := 0; x < img.Bounds().Dx(); x++ {
@@ -259,7 +267,7 @@ func TestFaceDifferentSizes(t *testing.T) {
 
 	sizes := []float64{8, 12, 24, 48, 96}
 	for _, size := range sizes {
-		face := NewFace(ttf, &FaceOptions{Size: size, DPI: 72})
+		face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: size, DPI: 72})
 		m := face.Metrics()
 		if m.Ascent == 0 {
 			t.Errorf("Size %.0f: Ascent is zero", size)
@@ -270,10 +278,9 @@ func TestFaceDifferentSizes(t *testing.T) {
 
 func TestFaceEmptyGlyph(t *testing.T) {
 	ttf := parseTestFont(t)
-	face := NewFace(ttf, &FaceOptions{Size: 12, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 12, DPI: 72})
 	defer face.Close()
 
-	// Test space character - typically has advance but no outline
 	spaceGid := ttf.RuneToGlyphID(' ')
 	if spaceGid == 0 {
 		t.Skip("space not mapped in test font")
@@ -287,16 +294,15 @@ func TestFaceEmptyGlyph(t *testing.T) {
 	if advance == 0 {
 		t.Error("space should have non-zero advance")
 	}
-	// Space has no outline, so mask should be nil and dr empty
 	_ = dr
 	_ = mask
 }
 
 // --- font.Drawer integration tests using LEELAWDB.TTF ---
 
-func loadKernFontData(t *testing.T) *TrueTypeFont {
+func loadKernFontData(t *testing.T) *gofont.TrueTypeFont {
 	t.Helper()
-	ttf, err := Parse(loadKernFont(t))
+	ttf, err := gofont.Parse(loadKernFont(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,11 +311,11 @@ func loadKernFontData(t *testing.T) *TrueTypeFont {
 
 func TestDrawStringBasic(t *testing.T) {
 	ttf := loadKernFontData(t)
-	face := NewFace(ttf, &FaceOptions{Size: 32, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 32, DPI: 72})
 	defer face.Close()
 
 	img := image.NewRGBA(image.Rect(0, 0, 300, 60))
-	draw.Draw(img, img.Bounds(), image.White, image.Point{}, draw.Src)
+	imdraw.Draw(img, img.Bounds(), image.White, image.Point{}, imdraw.Src)
 
 	d := &font.Drawer{
 		Dst:  img,
@@ -319,7 +325,6 @@ func TestDrawStringBasic(t *testing.T) {
 	}
 	d.DrawString("Hello World")
 
-	// Verify visible content was drawn
 	if !hasNonWhitePixels(img) {
 		t.Error("DrawString(\"Hello World\") produced no visible output")
 	}
@@ -327,12 +332,12 @@ func TestDrawStringBasic(t *testing.T) {
 
 func TestDrawStringSingleChar(t *testing.T) {
 	ttf := loadKernFontData(t)
-	face := NewFace(ttf, &FaceOptions{Size: 48, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 48, DPI: 72})
 	defer face.Close()
 
 	for _, ch := range "ABC" {
 		img := image.NewRGBA(image.Rect(0, 0, 100, 80))
-		draw.Draw(img, img.Bounds(), image.White, image.Point{}, draw.Src)
+		imdraw.Draw(img, img.Bounds(), image.White, image.Point{}, imdraw.Src)
 
 		d := &font.Drawer{
 			Dst:  img,
@@ -350,10 +355,9 @@ func TestDrawStringSingleChar(t *testing.T) {
 
 func TestDrawStringKerning(t *testing.T) {
 	ttf := loadKernFontData(t)
-	face := NewFace(ttf, &FaceOptions{Size: 32, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 32, DPI: 72})
 	defer face.Close()
 
-	// "AV" has a negative kern value, so it should be narrower than "AZ" (no kern)
 	advAV := measureString(face, "AV")
 	advAZ := measureString(face, "AZ")
 
@@ -364,14 +368,14 @@ func TestDrawStringKerning(t *testing.T) {
 
 func TestDrawStringMultipleLines(t *testing.T) {
 	ttf := loadKernFontData(t)
-	face := NewFace(ttf, &FaceOptions{Size: 20, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 20, DPI: 72})
 	defer face.Close()
 
 	m := face.Metrics()
 	lineHeight := m.Height >> 6
 
 	img := image.NewRGBA(image.Rect(0, 0, 300, 200))
-	draw.Draw(img, img.Bounds(), image.White, image.Point{}, draw.Src)
+	imdraw.Draw(img, img.Bounds(), image.White, image.Point{}, imdraw.Src)
 
 	d := &font.Drawer{
 		Dst:  img,
@@ -385,7 +389,6 @@ func TestDrawStringMultipleLines(t *testing.T) {
 		d.DrawString(line)
 	}
 
-	// Verify content was drawn
 	if !hasNonWhitePixels(img) {
 		t.Error("multi-line DrawString produced no visible output")
 	}
@@ -393,13 +396,12 @@ func TestDrawStringMultipleLines(t *testing.T) {
 
 func TestDrawStringColoredText(t *testing.T) {
 	ttf := loadKernFontData(t)
-	face := NewFace(ttf, &FaceOptions{Size: 24, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 24, DPI: 72})
 	defer face.Close()
 
 	img := image.NewRGBA(image.Rect(0, 0, 200, 50))
-	draw.Draw(img, img.Bounds(), image.White, image.Point{}, draw.Src)
+	imdraw.Draw(img, img.Bounds(), image.White, image.Point{}, imdraw.Src)
 
-	// Draw with a colored source
 	blue := image.NewUniform(color.RGBA{0, 0, 255, 255})
 	d := &font.Drawer{
 		Dst:  img,
@@ -409,7 +411,6 @@ func TestDrawStringColoredText(t *testing.T) {
 	}
 	d.DrawString("Blue")
 
-	// Verify blue pixels exist
 	foundBlue := false
 	for y := 0; y < img.Bounds().Dy() && !foundBlue; y++ {
 		for x := 0; x < img.Bounds().Dx(); x++ {
@@ -427,11 +428,11 @@ func TestDrawStringColoredText(t *testing.T) {
 
 func TestDrawStringAdvancesCorrectly(t *testing.T) {
 	ttf := loadKernFontData(t)
-	face := NewFace(ttf, &FaceOptions{Size: 24, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 24, DPI: 72})
 	defer face.Close()
 
 	img := image.NewRGBA(image.Rect(0, 0, 400, 50))
-	draw.Draw(img, img.Bounds(), image.White, image.Point{}, draw.Src)
+	imdraw.Draw(img, img.Bounds(), image.White, image.Point{}, imdraw.Src)
 
 	startX := fixed.I(10)
 	d := &font.Drawer{
@@ -442,13 +443,11 @@ func TestDrawStringAdvancesCorrectly(t *testing.T) {
 	}
 	d.DrawString("ABCD")
 
-	// Verify Dot advanced past the start position
 	endX := d.Dot.X
 	if endX <= startX {
 		t.Errorf("Dot.X did not advance: start=%d end=%d", startX, endX)
 	}
 
-	// Verify the advance is reasonable (each char ~10-20px at 24pt)
 	advance := (endX - startX) >> 6
 	if advance < 20 || advance > 200 {
 		t.Errorf("unexpected total advance for \"ABCD\": %d pixels", advance)
@@ -460,8 +459,8 @@ func TestDrawStringAtDifferentSizes(t *testing.T) {
 
 	sizes := []float64{10, 16, 32, 64}
 	for _, size := range sizes {
-		t.Run(fmt.Sprintf("Size%.0f", size), func(t *testing.T) {
-			face := NewFace(ttf, &FaceOptions{Size: size, DPI: 72})
+		t.Run(formatSize(size), func(t *testing.T) {
+			face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: size, DPI: 72})
 			defer face.Close()
 
 			m := face.Metrics()
@@ -471,7 +470,7 @@ func TestDrawStringAtDifferentSizes(t *testing.T) {
 			}
 
 			img := image.NewRGBA(image.Rect(0, 0, 200, imgH))
-			draw.Draw(img, img.Bounds(), image.White, image.Point{}, draw.Src)
+			imdraw.Draw(img, img.Bounds(), image.White, image.Point{}, imdraw.Src)
 
 			d := &font.Drawer{
 				Dst:  img,
@@ -490,14 +489,12 @@ func TestDrawStringAtDifferentSizes(t *testing.T) {
 
 func TestDrawStringWithUnmappedRunes(t *testing.T) {
 	ttf := loadKernFontData(t)
-	face := NewFace(ttf, &FaceOptions{Size: 24, DPI: 72})
+	face := fontdraw.NewFace(ttf, &fontdraw.FaceOptions{Size: 24, DPI: 72})
 	defer face.Close()
 
 	img := image.NewRGBA(image.Rect(0, 0, 300, 50))
-	draw.Draw(img, img.Bounds(), image.White, image.Point{}, draw.Src)
+	imdraw.Draw(img, img.Bounds(), image.White, image.Point{}, imdraw.Src)
 
-	// String contains a mix of mapped and unmapped characters
-	// The string "A\x00B" should draw A and B, skipping the null byte
 	d := &font.Drawer{
 		Dst:  img,
 		Src:  image.Black,
@@ -513,7 +510,10 @@ func TestDrawStringWithUnmappedRunes(t *testing.T) {
 
 // --- Helper functions ---
 
-// hasNonWhitePixels checks if the image contains at least one non-white pixel.
+func formatSize(size float64) string {
+	return fmt.Sprintf("Size%.0f", size)
+}
+
 func hasNonWhitePixels(img *image.RGBA) bool {
 	for y := 0; y < img.Bounds().Dy(); y++ {
 		for x := 0; x < img.Bounds().Dx(); x++ {
@@ -526,8 +526,7 @@ func hasNonWhitePixels(img *image.RGBA) bool {
 	return false
 }
 
-// measureString returns the total advance width of a string rendered by the Face.
-func measureString(face *Face, s string) fixed.Int26_6 {
+func measureString(face *fontdraw.Face, s string) fixed.Int26_6 {
 	var total fixed.Int26_6
 	var prev rune
 	for i, r := range s {

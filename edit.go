@@ -389,6 +389,38 @@ func (ttf *TrueTypeFont) Descent() int16 {
 	return ttf.hhea.descent
 }
 
+// LineGap returns the font line gap value from hhea table.
+func (ttf *TrueTypeFont) LineGap() int16 {
+	if ttf.hhea == nil {
+		return 0
+	}
+	return ttf.hhea.lineGap
+}
+
+// CaretSlope returns the caret slope (run, rise) from hhea table.
+func (ttf *TrueTypeFont) CaretSlope() (run, rise int16) {
+	if ttf.hhea == nil {
+		return 0, 0
+	}
+	return ttf.hhea.caretSlopeRun, ttf.hhea.caretSlopeRise
+}
+
+// XHeight returns the x-height from OS/2 table.
+func (ttf *TrueTypeFont) XHeight() int16 {
+	if ttf.os2 == nil {
+		return 0
+	}
+	return ttf.os2.sxHeight
+}
+
+// CapHeight returns the cap height from OS/2 table.
+func (ttf *TrueTypeFont) CapHeight() int16 {
+	if ttf.os2 == nil {
+		return 0
+	}
+	return ttf.os2.sCapHeight
+}
+
 // AdvanceWidth returns the advance width for the given glyph ID.
 func (ttf *TrueTypeFont) AdvanceWidth(glyphID uint16) uint16 {
 	if ttf.hmtx == nil || int(glyphID) >= ttf.NumGlyphs() {
@@ -428,6 +460,34 @@ func (ttf *TrueTypeFont) AdvanceWidthForRune(r rune) uint16 {
 		return 0
 	}
 	return ttf.AdvanceWidth(gid)
+}
+
+// KernPair returns the kerning value between two glyph IDs.
+// Returns 0 if no kerning pair exists or the kern table is not present.
+func (ttf *TrueTypeFont) KernPair(left, right uint16) int16 {
+	if ttf.kern == nil {
+		return 0
+	}
+	for _, sub := range ttf.kern.subtables {
+		if sub.format != 0 {
+			continue
+		}
+		// Binary search in sorted pairs
+		lo, hi := 0, len(sub.pairs)
+		for lo < hi {
+			mid := (lo + hi) / 2
+			p := sub.pairs[mid]
+			if p.Left < left || (p.Left == left && p.Right < right) {
+				lo = mid + 1
+			} else {
+				hi = mid
+			}
+		}
+		if lo < len(sub.pairs) && sub.pairs[lo].Left == left && sub.pairs[lo].Right == right {
+			return sub.pairs[lo].Value
+		}
+	}
+	return 0
 }
 
 // IsSimpleGlyph reports whether the glyph at index is a simple glyph.
