@@ -136,12 +136,15 @@ These methods apply to CFF outline fonts (`.otf` files). For TrueType outline fo
 
 ### Text Rendering (font.Face)
 
-Implements `golang.org/x/image/font.Face`, enabling parsed fonts to be used directly with `font.Drawer` for text rendering.
+Text rendering is provided by the `draw` subpackage:
+
+```go
+import fontdraw "github.com/venusliang/go-font/draw"
+```
 
 | Method | Description |
 |--------|-------------|
-| `ttf.NewFace(opts *FaceOptions) *Face` | Create a rendering Face at the specified size |
-| `NewFace(ttf, opts) *Face` | Package-level function (equivalent to the method above) |
+| `fontdraw.NewFace(ttf, opts) *Face` | Create a rendering Face at the specified size |
 | `face.Close() error` | Release resources (currently a no-op) |
 | `face.Metrics() font.Metrics` | Return font metrics (Ascent, Descent, Height, etc.) |
 | `face.GlyphAdvance(r rune) (fixed.Int26_6, bool)` | Return glyph advance width |
@@ -149,15 +152,26 @@ Implements `golang.org/x/image/font.Face`, enabling parsed fonts to be used dire
 | `face.Kern(r0, r1 rune) fixed.Int26_6` | Return kerning value between two runes |
 | `face.Glyph(dot, r) (dr, mask, maskp, advance, ok)` | Rasterize a glyph, returning an alpha mask |
 
-**FaceOptions:**
+Supports both TrueType outlines (quadratic Bezier curves) and CFF/OpenType outlines (cubic Bezier curves), using `golang.org/x/image/vector.Rasterizer` for anti-aliased rendering.
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `Size` | `float64` | 12 | Font size in points |
-| `DPI` | `float64` | 72 | Screen dots per inch |
-| `Hinting` | `font.Hinting` | `HintingNone` | Hinting mode (only `HintingNone` is currently supported) |
+See the [draw subpackage README](draw/README.md) for detailed API documentation and usage examples.
 
-Supports both TrueType outlines (quadratic Bezier curves) and CFF/OpenType outlines (cubic Bezier curves), using `golang.org/x/image/vector.Rasterizer` for anti-aliased rendering. CFF outlines are decoded once and cached when the Face is created.
+### SVG Export
+
+Glyph outline export as standalone SVG documents is provided by the `svg` subpackage:
+
+```go
+import svgexp "github.com/venusliang/go-font/svg"
+```
+
+| Function | Description |
+|----------|-------------|
+| `svgexp.Glyph(ttf, glyphIndex, opts) (string, error)` | Export a glyph by index as a standalone SVG document |
+| `svgexp.GlyphForRune(ttf, r, opts) (string, error)` | Export a glyph by Unicode code point as an SVG document |
+
+Supports both TrueType outlines (quadratic Bezier curves) and CFF/OpenType outlines (cubic Bezier curves), using the unified `GlyphPath` API.
+
+See the [svg subpackage README](svg/README.md) for detailed API documentation and usage examples.
 
 ## Multi-Format Support
 
@@ -469,6 +483,8 @@ import (
     "os"
 
     gofont "github.com/venusliang/go-font"
+    fontdraw "github.com/venusliang/go-font/draw"
+
     "golang.org/x/image/font"
     "golang.org/x/image/math/fixed"
 )
@@ -479,7 +495,7 @@ func main() {
     ttf, _ := gofont.Parse(data)
 
     // Create a rendering Face at 24pt / 72 DPI
-    face := ttf.NewFace(&gofont.FaceOptions{Size: 24, DPI: 72})
+    face := fontdraw.NewFace(&ttf, &fontdraw.FaceOptions{Size: 24, DPI: 72})
     defer face.Close()
 
     // Create a destination image
@@ -708,7 +724,8 @@ const (
 | `GSUB` | `gsub.go` | Glyph substitution table |
 | `CFF ` | `cff.go` | Compact Font Format table (OpenType/CFF fonts) |
 | CharString | `cff_charstring.go` | CFF Type 2 CharString outline decoding |
-| Rendering | `face.go` | `font.Face` implementation, anti-aliased rasterization via `golang.org/x/image/vector` |
+| Rendering | `draw/face.go` | `font.Face` implementation, anti-aliased rasterization via `golang.org/x/image/vector` |
+| SVG Export | `svg/svg.go` | Glyph outline export as standalone SVG documents |
 
 ## Supported Font Formats
 

@@ -285,12 +285,15 @@ ttcOut, _ := gofont.SerializeTTC(fonts)
 
 ### 文本渲染（font.Face）
 
-支持 `golang.org/x/image/font.Face` 接口，可将解析后的字体直接用于 `font.Drawer` 绘制文本。
+文本渲染功能由 `draw` 子包提供：
+
+```go
+import fontdraw "github.com/venusliang/go-font/draw"
+```
 
 | 方法 | 说明 |
 |------|------|
-| `ttf.NewFace(opts *FaceOptions) *Face` | 创建指定大小的渲染 Face |
-| `NewFace(ttf, opts) *Face` | 包级函数，功能同上 |
+| `fontdraw.NewFace(ttf, opts) *Face` | 创建指定大小的渲染 Face |
 | `face.Close() error` | 释放资源（当前为空操作） |
 | `face.Metrics() font.Metrics` | 返回字体度量（Ascent/Descent/Height 等） |
 | `face.GlyphAdvance(r rune) (fixed.Int26_6, bool)` | 返回字形前进宽度 |
@@ -298,15 +301,26 @@ ttcOut, _ := gofont.SerializeTTC(fonts)
 | `face.Kern(r0, r1 rune) fixed.Int26_6` | 返回字距调整值 |
 | `face.Glyph(dot fixed.Point26_6, r rune) (dr, mask, maskp, advance, ok)` | 光栅化字形，返回 Alpha 蒙版 |
 
-`FaceOptions` 配置：
+支持 TrueType 轮廓（二次贝塞尔曲线）和 CFF/OpenType 轮廓（三次贝塞尔曲线），使用 `golang.org/x/image/vector.Rasterizer` 实现抗锯齿渲染。
 
-| 字段 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `Size` | `float64` | 12 | 字号（磅） |
-| `DPI` | `float64` | 72 | 屏幕分辨率 |
-| `Hinting` | `font.Hinting` | `HintingNone` | 微调模式（当前仅支持 HintingNone） |
+详见 [draw 子包 README](draw/README.md) 获取完整的 API 文档与使用示例。
 
-支持 TrueType 轮廓（二次贝塞尔曲线）和 CFF/OpenType 轮廓（三次贝塞尔曲线），使用 `golang.org/x/image/vector.Rasterizer` 实现抗锯齿渲染。CFF 轮廓在创建 Face 时一次性解码并缓存。
+### SVG 导出
+
+字形轮廓的独立 SVG 文档导出由 `svg` 子包提供：
+
+```go
+import svgexp "github.com/venusliang/go-font/svg"
+```
+
+| 函数 | 说明 |
+|------|------|
+| `svgexp.Glyph(ttf, glyphIndex, opts) (string, error)` | 按字形索引导出为独立 SVG 文档 |
+| `svgexp.GlyphForRune(ttf, r, opts) (string, error)` | 按 Unicode 码点导出为 SVG 文档 |
+
+支持 TrueType 轮廓（二次贝塞尔曲线）和 CFF/OpenType 轮廓（三次贝塞尔曲线），使用统一的 `GlyphPath` API。
+
+详见 [svg 子包 README](svg/README.md) 获取完整的 API 文档与使用示例。
 
 ## 使用示例
 
@@ -472,6 +486,8 @@ import (
     "os"
 
     gofont "github.com/venusliang/go-font"
+    fontdraw "github.com/venusliang/go-font/draw"
+
     "golang.org/x/image/font"
     "golang.org/x/image/math/fixed"
 )
@@ -482,7 +498,7 @@ func main() {
     ttf, _ := gofont.Parse(data)
 
     // 创建 24pt / 72 DPI 的渲染 Face
-    face := ttf.NewFace(&gofont.FaceOptions{Size: 24, DPI: 72})
+    face := fontdraw.NewFace(&ttf, &fontdraw.FaceOptions{Size: 24, DPI: 72})
     defer face.Close()
 
     // 创建目标图像
@@ -712,7 +728,8 @@ const (
 | `GSUB` | `gsub.go` | 字形替换表 |
 | `CFF ` | `cff.go` | Compact Font Format 表（OpenType/CFF 字体） |
 | CharString | `cff_charstring.go` | CFF Type 2 CharString 轮廓解码 |
-| 渲染 | `face.go` | `font.Face` 实现，支持 `golang.org/x/image/font` 文本绘制，使用 `golang.org/x/image/vector` 抗锯齿光栅化 |
+| 渲染 | `draw/face.go` | `font.Face` 实现，支持 `golang.org/x/image/font` 文本绘制，使用 `golang.org/x/image/vector` 抗锯齿光栅化 |
+| SVG 导出 | `svg/svg.go` | 字形轮廓的独立 SVG 文档导出 |
 
 ## 支持的字体格式
 
