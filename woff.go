@@ -148,11 +148,16 @@ func (ttf *TrueTypeFont) SerializeWOFF() ([]byte, error) {
 	dirSize := int(numTables) * dirEntrySize
 	dataStart := headerSize + dirSize
 
+	// Pad each table data to 4-byte boundary per WOFF spec.
+	pad4 := func(n uint32) uint32 {
+		return (4 - n%4) % 4
+	}
+
 	woffOffsets := make([]uint32, numTables)
 	off := uint32(dataStart)
 	for i, ct := range compTables {
 		woffOffsets[i] = off
-		off += uint32(len(ct.compData))
+		off += uint32(len(ct.compData)) + pad4(uint32(len(ct.compData)))
 	}
 
 	totalLength := off
@@ -184,6 +189,9 @@ func (ttf *TrueTypeFont) SerializeWOFF() ([]byte, error) {
 
 	for _, ct := range compTables {
 		woffBin.Append(ct.compData)
+		for j := uint32(0); j < pad4(uint32(len(ct.compData))); j++ {
+			woffBin.PutU8(0)
+		}
 	}
 
 	return woffData, nil
