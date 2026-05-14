@@ -170,7 +170,12 @@ func (ttf *TrueTypeFont) SerializeWOFF() ([]byte, error) {
 	woffBin.PutU32(totalLength)
 	woffBin.PutU16(numTables)
 	woffBin.PutU16(0) // reserved
-	woffBin.PutU32(uint32(len(ttfData)))
+	// totalSfntSize per WOFF spec: sfnt header + directory + each table padded to 4-byte boundary
+	totalSfntSize := uint32(12 + 16*numTables)
+	for _, ct := range compTables {
+		totalSfntSize += ct.origLen + pad4(ct.origLen)
+	}
+	woffBin.PutU32(totalSfntSize)
 	woffBin.PutU16(0) // majorVersion
 	woffBin.PutU16(0) // minorVersion
 	woffBin.PutU32(0) // metaOffset
