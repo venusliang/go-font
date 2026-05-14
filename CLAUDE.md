@@ -107,10 +107,18 @@ TTC (TrueType Collection) is a container format that bundles multiple fonts in o
 - `writeGlyf` and `writeLoca` are coupled: `writeGlyf` returns both the glyf data and the loca offsets, since glyph sizes affect offsets. Glyph data is padded to even boundaries for short loca format compatibility.
 - `calcTableChecksum` in `table.go` pads data to 4-byte boundaries. The `head` table's `checksumAdjustment` field must be zeroed before checksum calculation.
 - `writeCmap` handles duplicate subtable offsets (multiple encoding records pointing to the same subtable data).
+- `cmap` format 4 `glyphIdArray` must be read from the remaining subtable bytes (`length - currentOffset`), NOT from `binary.Offset()` bytes. The offset tracks bytes consumed so far, not the remaining size.
 - `TrueTypeFont.Serialize()` sorts tables alphabetically by tag, pads to 4-byte alignment, and patches `head.checksumAdjustment = 0xB1B0AFBA - wholeFileChecksum`.
 - `rawTables` in `TrueTypeFont` stores raw bytes for tables not natively parsed (e.g. `CFF `). These are written back as-is during serialization for lossless round-trip.
 - `NumGlyphs()` uses `len(glyf)` for TrueType fonts and `maxp.numGlyphs` for CFF fonts.
 - CFF charstring outlines are decoded lazily via `DecodeOutlines()` using a Type 2 VM with a 48-entry operand stack, subroutine support (local + global), and 10-level call depth limit.
+
+### WOFF Serialization Pitfalls
+
+- **totalSfntSize must include 4-byte padding for ALL tables** (including the last one). Do NOT use `len(ttfData)` directly — the TTF from `Serialize()` does not pad the trailing table. Calculate as `12 + 16*numTables + sum(origLen + pad4(origLen))` for each table. Using raw TTF size causes font tools to report "outside" / out-of-bounds errors.
+- **WOFF table data blocks must be padded to 4-byte boundaries**. Each table's compressed data in the WOFF file must be followed by `(4 - len%4) % 4` zero bytes. The `offset` field in each WOFF directory entry points to the start of the padded block.
+- **Composite glyph instructions must be preserved**. `parseCompositeGlyph` must read `instructionLength` + instructions after the last component when `WE_HAVE_INSTRUCTIONS` flag (0x0100) is set. `writeCompositeGlyph` must write them back. Dropping instructions while keeping the flag causes OTS rejection.
+- **cmap format 4 `length` field** is the total subtable size including the format field. Use it (not `binary.Offset()`) to determine how many bytes remain for `glyphIdArray`.
 
 ### Font Rendering (face.go)
 
