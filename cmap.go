@@ -260,12 +260,11 @@ func parseCmapFormat4(binary Binary) (*CMapFormat4, error) {
 		f.idRangeOffset[i] = binary.U16()
 	}
 
-	// Remaining bytes are the glyphIdArray
-	remaining := binary.Bytes(binary.Offset()) // just peek
-	if len(remaining) > 0 {
-		// We need to read the glyphIdArray from after the idRangeOffset array
-		// The offset calculations in Map() are relative to idRangeOffset positions
-		// Store the remaining data as glyphIdArray
+	// Remaining bytes in this subtable are the glyphIdArray.
+	// Use the length field to determine the correct boundary.
+	remainingSize := int(length) - binary.Offset()
+	if remainingSize > 0 {
+		remaining := binary.Bytes(remainingSize)
 		glyphArrayBinary := BinaryFrom(remaining, false)
 		count := len(remaining) / 2
 		f.glyphIdArray = make([]uint16, count)
