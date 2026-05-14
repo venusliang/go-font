@@ -21,6 +21,7 @@ const (
 	compositeMoreComponents     uint16 = 0x0020
 	compositeWeHaveAnXAndYScale uint16 = 0x0040
 	compositeWeHaveATwoByTwo    uint16 = 0x0080
+	compositeWeHaveInstructions uint16 = 0x0100
 )
 
 type GlyphHeader struct {
@@ -51,7 +52,8 @@ type GlyphComponent struct {
 }
 
 type CompositeGlyph struct {
-	components []GlyphComponent
+	components   []GlyphComponent
+	instructions []byte
 }
 
 type Glyph struct {
@@ -228,6 +230,11 @@ func parseCompositeGlyph(binary Binary) (*CompositeGlyph, error) {
 		cg.components = append(cg.components, comp)
 
 		if comp.flags&compositeMoreComponents == 0 {
+			// Check if the last component has instructions
+			if comp.flags&compositeWeHaveInstructions != 0 {
+				instLen := binary.U16()
+				cg.instructions = binary.Read(int(instLen))
+			}
 			break
 		}
 	}
@@ -274,6 +281,9 @@ func glyphEncodedSize(g *Glyph) int {
 	if g.simpleGlyph != nil {
 		n := len(g.simpleGlyph.xCoordinates)
 		est = 10 + 2*len(g.simpleGlyph.endPtsOfContours) + 2 + len(g.simpleGlyph.instructions) + n*6
+	}
+	if g.compositeGlyph != nil {
+		est += len(g.compositeGlyph.instructions) + 2
 	}
 	if est < 2000 {
 		est = 2000
@@ -419,5 +429,10 @@ func writeCompositeGlyph(binary Binary, cg *CompositeGlyph) {
 			binary.PutU16(uint16(comp.transform[2]))
 			binary.PutU16(uint16(comp.transform[3]))
 		}
+	}
+
+	if len(cg.instructions) > 0 {
+		binary.PutU16(uint16(len(cg.instructions)))
+		binary.Append(cg.instructions)
 	}
 }
