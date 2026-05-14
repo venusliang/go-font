@@ -54,13 +54,14 @@ Each TrueType table has its own file with a `parseXxx(data []byte)` function and
 | `kern.go` | `kern` | Kerning table, format 0 |
 | `gpos.go` | `GPOS` | Glyph positioning, single substitution / pair positioning |
 | `gsub.go` | `GSUB` | Glyph substitution, single substitution |
+| `hinting.go` | `prep`, `cvt `, `fpgm` | TrueType hinting tables: prep/cvt/fpgm bytecode and control values |
 | `cff.go` | `CFF ` | CFF (Compact Font Format) structure: Header, INDEX, Top/Private DICT, Charset, CharStrings |
 | `cff_charstring.go` | — | Type 2 CharString bytecode interpreter, outline extraction (moveto/lineto/curveto) |
 | `face.go` | — | `font.Face` implementation for text rendering via `golang.org/x/image/font` |
 
 ### Parse Order
 
-Independent tables (head, OS/2, cmap, maxp, name, hhea, post) are parsed in the table directory loop. Dependent tables are parsed after the loop:
+Independent tables (head, OS/2, cmap, maxp, name, hhea, post, prep, cvt, fpgm) are parsed in the table directory loop. Dependent tables are parsed after the loop:
 - `hmtx` needs `hhea.numberOfHMetrics` + `maxp.numGlyphs`
 - `loca` needs `head.indexToLocFormat` + `maxp.numGlyphs`
 - `glyf` needs `loca` for glyph boundaries
@@ -110,6 +111,7 @@ TTC (TrueType Collection) is a container format that bundles multiple fonts in o
 - `cmap` format 4 `glyphIdArray` must be read from the remaining subtable bytes (`length - currentOffset`), NOT from `binary.Offset()` bytes. The offset tracks bytes consumed so far, not the remaining size.
 - `TrueTypeFont.Serialize()` sorts tables alphabetically by tag, pads to 4-byte alignment, and patches `head.checksumAdjustment = 0xB1B0AFBA - wholeFileChecksum`.
 - `rawTables` in `TrueTypeFont` stores raw bytes for tables not natively parsed (e.g. `CFF `). These are written back as-is during serialization for lossless round-trip.
+- The `cvt ` table tag has a trailing space (4 bytes: `c`, `v`, `t`, ` `). All table tags are exactly 4 bytes per OpenType spec. When adding new natively-parsed tables, verify the exact tag spelling.
 - `NumGlyphs()` uses `len(glyf)` for TrueType fonts and `maxp.numGlyphs` for CFF fonts.
 - CFF charstring outlines are decoded lazily via `DecodeOutlines()` using a Type 2 VM with a 48-entry operand stack, subroutine support (local + global), and 10-level call depth limit.
 

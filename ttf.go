@@ -21,6 +21,9 @@ type TrueTypeFont struct {
 	glyf          []*Glyph
 	post          *Post
 	kern          *Kern
+	prep          *Prep
+	cvt           *Cvt
+	fpgm          *Fpgm
 	gpos          *GPOS
 	gsub          *GSUB
 	runeToGlyphID map[rune]uint16
@@ -61,6 +64,7 @@ func parseFromOffset(data []byte, offset uint32) (ttf TrueTypeFont, err error) {
 		"head": true, "OS/2": true, "cmap": true, "maxp": true,
 		"name": true, "hhea": true, "post": true, "kern": true,
 		"GPOS": true, "GSUB": true, "hmtx": true, "loca": true, "glyf": true,
+			"prep": true, "cvt ": true, "fpgm": true,
 	}
 
 	for i := 0; i < int(ttf.numTables); i++ {
@@ -119,6 +123,12 @@ func parseFromOffset(data []byte, offset uint32) (ttf TrueTypeFont, err error) {
 			ttf.gpos, err = parseGpos(table)
 		case "GSUB":
 			ttf.gsub, err = parseGsub(table)
+		case "prep":
+			ttf.prep = parsePrep(table)
+		case "cvt ":
+			ttf.cvt = parseCvt(table)
+		case "fpgm":
+			ttf.fpgm = parseFpgm(table)
 		}
 		if err != nil {
 			return

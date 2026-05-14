@@ -71,6 +71,15 @@ func (ttf *TrueTypeFont) Serialize() ([]byte, error) {
 	if ttf.gsub != nil {
 		tables = append(tables, tableEntry{"GSUB", writeGsub(ttf.gsub)})
 	}
+	if ttf.prep != nil {
+		tables = append(tables, tableEntry{"prep", writePrep(ttf.prep)})
+	}
+	if ttf.cvt != nil {
+		tables = append(tables, tableEntry{"cvt ", writeCvt(ttf.cvt)})
+	}
+	if ttf.fpgm != nil {
+		tables = append(tables, tableEntry{"fpgm", writeFpgm(ttf.fpgm)})
+	}
 	// Write raw (unparsed) tables as-is for round-trip support (e.g. "CFF ")
 	for tag, raw := range ttf.rawTables {
 		tables = append(tables, tableEntry{tag, raw})
