@@ -205,7 +205,7 @@ func parseCFFINDEX(data []byte, offset int) (CFFINDEX, int, error) {
 		return CFFINDEX{}, 0, errors.New("INDEX offsets out of bounds")
 	}
 
-	offsets := make([]uint32, count+1)
+	offsets := make([]uint32, uint32(count)+1)
 	for i := 0; i <= int(count); i++ {
 		off := offsetsStart + i*offSize
 		var v uint32
